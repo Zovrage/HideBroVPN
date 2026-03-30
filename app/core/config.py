@@ -1,5 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
+import json
 from functools import lru_cache
 from typing import Literal
 
@@ -42,12 +43,29 @@ class Settings(BaseSettings):
 
     @field_validator("admin_ids", mode="before")
     @classmethod
-    def parse_admin_ids(cls, value: str | list[int] | None) -> list[int]:
+    def parse_admin_ids(cls, value: str | int | list[int] | tuple[int, ...] | None) -> list[int]:
         if value is None:
             return []
+        if isinstance(value, int):
+            return [value]
+        if isinstance(value, tuple):
+            return [int(v) for v in value]
         if isinstance(value, list):
             return [int(v) for v in value]
-        cleaned = [part.strip() for part in value.split(",") if part.strip()]
+
+        raw = value.strip()
+        if not raw:
+            return []
+
+        if raw.startswith("[") and raw.endswith("]"):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return [int(v) for v in parsed]
+            except json.JSONDecodeError:
+                pass
+
+        cleaned = [part.strip() for part in raw.split(",") if part.strip()]
         return [int(v) for v in cleaned]
 
     @field_validator("support_username")
