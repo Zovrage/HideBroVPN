@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -18,8 +19,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    payment_action = sa.Enum("CREATE", "EXTEND", name="payment_action")
-    payment_status = sa.Enum("PENDING", "SUCCEEDED", "CANCELED", name="payment_status")
+    payment_action = postgresql.ENUM("CREATE", "EXTEND", name="payment_action")
+    payment_status = postgresql.ENUM("PENDING", "SUCCEEDED", "CANCELED", name="payment_status")
     payment_action.create(op.get_bind(), checkfirst=True)
     payment_status.create(op.get_bind(), checkfirst=True)
 
@@ -85,9 +86,17 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Integer(), nullable=False),
         sa.Column("subscription_id", sa.Integer(), nullable=True),
         sa.Column("plan_code", sa.String(length=16), nullable=False),
-        sa.Column("action_type", sa.Enum("CREATE", "EXTEND", name="payment_action"), nullable=False),
+        sa.Column(
+            "action_type",
+            postgresql.ENUM("CREATE", "EXTEND", name="payment_action", create_type=False),
+            nullable=False,
+        ),
         sa.Column("amount_rub", sa.Integer(), nullable=False),
-        sa.Column("status", sa.Enum("PENDING", "SUCCEEDED", "CANCELED", name="payment_status"), nullable=False),
+        sa.Column(
+            "status",
+            postgresql.ENUM("PENDING", "SUCCEEDED", "CANCELED", name="payment_status", create_type=False),
+            nullable=False,
+        ),
         sa.Column("gateway", sa.String(length=32), nullable=False),
         sa.Column("gateway_payment_id", sa.String(length=128), nullable=True),
         sa.Column("payment_url", sa.Text(), nullable=True),
