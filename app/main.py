@@ -65,7 +65,7 @@ async def run() -> None:
         token=settings.bot_token,
         default=DefaultBotProperties(
             parse_mode=ParseMode.HTML,
-            link_preview_options=LinkPreviewOptions(is_disabled=True),
+            link_preview=LinkPreviewOptions(is_disabled=True),
         ),
     )
 
