@@ -1,0 +1,14 @@
+.git
+.gitignore
+__pycache__/
+*.py[cod]
+*.log
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+.idea/
+.vscode/
+.tmp_remnawave_sdk/
+.tmp_remnawave_api.json
