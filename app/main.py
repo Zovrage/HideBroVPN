@@ -7,6 +7,7 @@ import redis.asyncio as redis
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import LinkPreviewOptions
 from aiogram.fsm.storage.redis import RedisStorage
 
 from app.bot.handlers import admin as admin_handlers
@@ -64,7 +65,7 @@ async def run() -> None:
         token=settings.bot_token,
         default=DefaultBotProperties(
             parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         ),
     )
 
