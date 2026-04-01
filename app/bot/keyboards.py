@@ -18,29 +18,17 @@ from app.db.models import UserSubscription
 from app.domain.plans import PAID_PLAN_CODES, PLANS
 from app.services.remnawave import RemnawaveDevice
 
-EMOJI_CONNECT = "\U0001F6DC"
-EMOJI_SUBS = "\U0001F4E6"
-EMOJI_REF = "\U0001F517"
-EMOJI_SUPPORT = "\U0001F3A7"
-EMOJI_BACK = "\U0001F519"
-EMOJI_PAY = "\U0001F4B3"
-EMOJI_CHECK = "\u2705"
-EMOJI_EXTEND = "\u267b\ufe0f"
-EMOJI_DEVICES = "\U0001F4F1"
-EMOJI_GIFT = "\U0001F381"
-EMOJI_BROADCAST = "\U0001F4E2"
-EMOJI_DISCONNECT = "\u274c"
 RUBLE = "\u20bd"
 
 
 def main_menu_keyboard(*, support_username: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"Подключиться {EMOJI_CONNECT}", callback_data=MainMenuCb(action="connect").pack()))
-    kb.row(InlineKeyboardButton(text=f"Мои подписки {EMOJI_SUBS}", callback_data=MainMenuCb(action="subscriptions").pack()))
-    kb.row(InlineKeyboardButton(text=f"Пригласить друга {EMOJI_REF}", callback_data=MainMenuCb(action="referral").pack()))
+    kb.row(InlineKeyboardButton(text="Подключиться", callback_data=MainMenuCb(action="connect").pack()))
+    kb.row(InlineKeyboardButton(text="Мои подписки", callback_data=MainMenuCb(action="subscriptions").pack()))
+    kb.row(InlineKeyboardButton(text="Пригласить друга", callback_data=MainMenuCb(action="referral").pack()))
     kb.row(
         InlineKeyboardButton(
-            text=f"Тех поддержка {EMOJI_SUPPORT}",
+            text="Тех поддержка",
             url=f"https://t.me/{support_username}",
         )
     )
@@ -64,9 +52,9 @@ def tariffs_keyboard(
             continue
 
         if plan.is_trial:
-            text = f"{plan.emoji} {plan.title}"
+            text = plan.title
         else:
-            text = f"{plan.emoji} {plan.title} - {plan.price_rub} {RUBLE}"
+            text = f"{plan.title} - {plan.price_rub} {RUBLE}"
 
         kb.row(
             InlineKeyboardButton(
@@ -81,7 +69,7 @@ def tariffs_keyboard(
         back_action = "subscriptions" if back_to_subscriptions else "main"
         back_callback = MainMenuCb(action=back_action).pack()
 
-    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=back_callback))
+    kb.row(InlineKeyboardButton(text="Назад", callback_data=back_callback))
     return kb.as_markup()
 
 
@@ -89,19 +77,19 @@ def plan_actions_keyboard(*, plan_code: str, mode: str, sub_id: int = 0) -> Inli
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(
-            text=f"Оплатить {EMOJI_PAY}",
+            text="Оплатить",
             callback_data=PlanActionCb(action="pay", plan=plan_code, mode=mode, sub=sub_id).pack(),
         )
     )
     kb.row(
         InlineKeyboardButton(
-            text=f"Проверить оплату {EMOJI_CHECK}",
+            text="Проверить оплату",
             callback_data=PlanActionCb(action="check", plan=plan_code, mode=mode, sub=sub_id).pack(),
         )
     )
     kb.row(
         InlineKeyboardButton(
-            text=f"Назад {EMOJI_BACK}",
+            text="Назад",
             callback_data=PlanActionCb(action="back", plan=plan_code, mode=mode, sub=sub_id).pack(),
         )
     )
@@ -119,7 +107,7 @@ def subscriptions_keyboard(subscriptions: list[UserSubscription]) -> InlineKeybo
             )
         )
 
-    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=MainMenuCb(action="main").pack()))
+    kb.row(InlineKeyboardButton(text="Назад", callback_data=MainMenuCb(action="main").pack()))
     return kb.as_markup()
 
 
@@ -128,23 +116,23 @@ def subscription_actions_keyboard(subscription: UserSubscription) -> InlineKeybo
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(
-            text=f"Подключиться {EMOJI_CONNECT}",
+            text="Подключиться",
             url=subscription.subscription_url,
         )
     )
     kb.row(
         InlineKeyboardButton(
-            text=f"Устройства {EMOJI_DEVICES}",
+            text="Устройства",
             callback_data=SubscriptionCb(action="devices", sub=subscription.id).pack(),
         )
     )
     kb.row(
         InlineKeyboardButton(
-            text=f"Продлить {EMOJI_EXTEND}",
+            text="Продлить",
             callback_data=SubscriptionCb(action="extend", sub=subscription.id).pack(),
         )
     )
-    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=MainMenuCb(action="subscriptions").pack()))
+    kb.row(InlineKeyboardButton(text="Назад", callback_data=MainMenuCb(action="subscriptions").pack()))
     return kb.as_markup()
 
 
@@ -154,7 +142,7 @@ def devices_manage_keyboard(subscription_id: int, devices: list[RemnawaveDevice]
     for idx, device in enumerate(devices, start=1):
         platform = device.platform or "Unknown"
         model = device.device_model or "Unknown"
-        caption = f"{EMOJI_DISCONNECT} Отключить {idx}: {platform}/{model}"
+        caption = f"Отключить {idx}: {platform}/{model}"
         kb.row(
             InlineKeyboardButton(
                 text=caption[:60],
@@ -164,7 +152,7 @@ def devices_manage_keyboard(subscription_id: int, devices: list[RemnawaveDevice]
 
     kb.row(
         InlineKeyboardButton(
-            text=f"Назад {EMOJI_BACK}",
+            text="Назад",
             callback_data=SubscriptionCb(action="open", sub=subscription_id).pack(),
         )
     )
@@ -173,46 +161,52 @@ def devices_manage_keyboard(subscription_id: int, devices: list[RemnawaveDevice]
 
 def devices_back_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=MainMenuCb(action="subscriptions").pack()))
+    kb.row(InlineKeyboardButton(text="Назад", callback_data=MainMenuCb(action="subscriptions").pack()))
     return kb.as_markup()
 
 
 def invite_menu_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"Ваша ссылка {EMOJI_REF}", callback_data=ReferralCb(action="link").pack()))
-    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=MainMenuCb(action="main").pack()))
+    kb.row(InlineKeyboardButton(text="Ваша ссылка", callback_data=ReferralCb(action="link").pack()))
+    kb.row(InlineKeyboardButton(text="Назад", callback_data=MainMenuCb(action="main").pack()))
     return kb.as_markup()
 
 
 def invite_link_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=MainMenuCb(action="referral").pack()))
+    kb.row(InlineKeyboardButton(text="Назад", callback_data=MainMenuCb(action="referral").pack()))
     return kb.as_markup()
 
 
 def admin_menu_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="Статистика", callback_data=AdminMenuCb(action="stats").pack()))
-    kb.row(InlineKeyboardButton(text=f"Выдача ключей {EMOJI_GIFT}", callback_data=AdminMenuCb(action="issue").pack()))
-    kb.row(InlineKeyboardButton(text=f"Рассылка {EMOJI_BROADCAST}", callback_data=AdminMenuCb(action="broadcast").pack()))
+    kb.row(InlineKeyboardButton(text="Выдача ключей", callback_data=AdminMenuCb(action="issue").pack()))
+    kb.row(InlineKeyboardButton(text="Рассылка", callback_data=AdminMenuCb(action="broadcast").pack()))
     kb.row(InlineKeyboardButton(text="Главное меню", callback_data=AdminMenuCb(action="main").pack()))
     return kb.as_markup()
 
 
 def admin_issue_prompt_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=AdminMenuCb(action="back").pack()))
+    kb.row(InlineKeyboardButton(text="Назад", callback_data=AdminMenuCb(action="back").pack()))
     return kb.as_markup()
 
 
 def admin_issue_days_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="3 дня", callback_data=AdminIssueCb(action="days", value="3").pack()))
-    kb.row(InlineKeyboardButton(text="30 дней", callback_data=AdminIssueCb(action="days", value="30").pack()))
-    kb.row(InlineKeyboardButton(text="90 дней", callback_data=AdminIssueCb(action="days", value="90").pack()))
-    kb.row(InlineKeyboardButton(text="180 дней", callback_data=AdminIssueCb(action="days", value="180").pack()))
-    kb.row(InlineKeyboardButton(text="365 дней", callback_data=AdminIssueCb(action="days", value="365").pack()))
-    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=AdminMenuCb(action="back").pack()))
+    used_days: set[int] = set()
+    for plan in PLANS.values():
+        if plan.days in used_days:
+            continue
+        used_days.add(plan.days)
+        kb.row(
+            InlineKeyboardButton(
+                text=f"{plan.days} дней",
+                callback_data=AdminIssueCb(action="days", value=str(plan.days)).pack(),
+            )
+        )
+    kb.row(InlineKeyboardButton(text="Назад", callback_data=AdminMenuCb(action="back").pack()))
     return kb.as_markup()
 
 
