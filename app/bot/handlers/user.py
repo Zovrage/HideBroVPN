@@ -28,7 +28,6 @@ from app.bot.texts import (
     payment_created_text,
     payment_pending_text,
     payment_success_text,
-    plan_details_text,
     subscription_details_text,
     subscriptions_list_text,
     tariffs_text,
@@ -232,13 +231,31 @@ async def tariff_select_callback(
         )
         return
 
+    action_type = _mode_to_action(callback_data.mode)
+    target_subscription_id = callback_data.sub if callback_data.sub > 0 else None
+    try:
+        created = await business.create_payment_order(
+            user_id=profile.id,
+            plan_code=plan.code,
+            action=action_type,
+            subscription_id=target_subscription_id,
+        )
+    except (NotFoundError, PaymentGatewayError, RemnawaveAPIError, ValueError) as exc:
+        await replace_callback_message(
+            callback,
+            text=str(exc),
+            reply_markup=main_menu_keyboard(support_username=settings.support_username),
+        )
+        return
+
     await replace_callback_message(
         callback,
-        text=plan_details_text(plan, mode=callback_data.mode),
+        text=payment_created_text(created.plan, created.order.payment_url),
         reply_markup=plan_actions_keyboard(
             plan_code=plan.code,
             mode=callback_data.mode,
             sub_id=callback_data.sub,
+            payment_url=created.order.payment_url,
         ),
     )
 
@@ -345,13 +362,29 @@ async def plan_action_callback(
             return
 
         if result.state == "not_found":
+            try:
+                created = await business.create_payment_order(
+                    user_id=profile.id,
+                    plan_code=plan.code,
+                    action=action_type,
+                    subscription_id=target_subscription_id,
+                )
+            except (NotFoundError, PaymentGatewayError, RemnawaveAPIError, ValueError) as exc:
+                await replace_callback_message(
+                    callback,
+                    text=str(exc),
+                    reply_markup=main_menu_keyboard(support_username=settings.support_username),
+                )
+                return
+
             await replace_callback_message(
                 callback,
-                text="Активный заказ не найден. Нажмите «Оплатить», чтобы создать заказ.",
+                text=payment_created_text(created.plan, created.order.payment_url),
                 reply_markup=plan_actions_keyboard(
                     plan_code=plan.code,
                     mode=callback_data.mode,
                     sub_id=callback_data.sub,
+                    payment_url=created.order.payment_url,
                 ),
             )
             return
