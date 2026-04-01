@@ -73,14 +73,25 @@ def tariffs_keyboard(
     return kb.as_markup()
 
 
-def plan_actions_keyboard(*, plan_code: str, mode: str, sub_id: int = 0) -> InlineKeyboardMarkup:
+def plan_actions_keyboard(
+    *,
+    plan_code: str,
+    mode: str,
+    sub_id: int = 0,
+    payment_url: str | None = None,
+) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(
-            text="Оплатить",
-            callback_data=PlanActionCb(action="pay", plan=plan_code, mode=mode, sub=sub_id).pack(),
+
+    if payment_url:
+        kb.row(InlineKeyboardButton(text="Оплатить заказ", url=payment_url))
+    else:
+        kb.row(
+            InlineKeyboardButton(
+                text="Оплатить",
+                callback_data=PlanActionCb(action="pay", plan=plan_code, mode=mode, sub=sub_id).pack(),
+            )
         )
-    )
+
     kb.row(
         InlineKeyboardButton(
             text="Проверить оплату",

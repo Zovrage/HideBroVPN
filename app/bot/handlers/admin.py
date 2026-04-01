@@ -274,7 +274,7 @@ async def admin_issue_days_callback(
         text=(
             "Администратор выдал вам бесплатный ключ.\n\n"
             f"Ключ: <code>{subscription.remna_username}</code>\n\n"
-            f"Действует до: <b>{subscription.expire_at.astimezone(ZoneInfo(settings.timezone)).strftime('%d.%m.%Y %H:%M')}</b>\n"
+            f"Действует до: <b>{subscription.expire_at.astimezone(ZoneInfo(settings.timezone)).strftime('%d.%m.%Y %H:%M')}</b>\n\n"
         ),
         reply_markup=main_menu_keyboard(support_username=settings.support_username),
         disable_web_page_preview=True,

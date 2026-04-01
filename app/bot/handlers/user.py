@@ -110,7 +110,7 @@ async def _send_referral_event_notification(
         await bot.send_message(
             chat_id=event.referrer_telegram_id,
             text=(
-                "Ваш приглашённый пользователь оплатил подписку, но у вас нет активных ключей для продления.\n"
+                "Ваш приглашённый пользователь оплатил подписку, но у вас нет активных ключей для продления.\n\n"
                 "Бонус не был применён."
             ),
         )
@@ -319,6 +319,7 @@ async def plan_action_callback(
                 plan_code=plan.code,
                 mode=callback_data.mode,
                 sub_id=callback_data.sub,
+                payment_url=created.order.payment_url,
             ),
         )
         return
@@ -363,6 +364,7 @@ async def plan_action_callback(
                     plan_code=plan.code,
                     mode=callback_data.mode,
                     sub_id=callback_data.sub,
+                    payment_url=result.order.payment_url if result.order else None,
                 ),
             )
             return
@@ -578,4 +580,3 @@ async def referral_reward_choice_callback(
         ),
         reply_markup=main_menu_keyboard(support_username=settings.support_username),
     )
-
