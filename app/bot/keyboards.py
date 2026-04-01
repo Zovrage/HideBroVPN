@@ -52,6 +52,7 @@ def tariffs_keyboard(
     sub_id: int = 0,
     include_trial: bool = True,
     back_to_subscriptions: bool = False,
+    back_to_subscription_id: int | None = None,
 ) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
 
@@ -73,8 +74,13 @@ def tariffs_keyboard(
             )
         )
 
-    back_action = "subscriptions" if back_to_subscriptions else "main"
-    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=MainMenuCb(action=back_action).pack()))
+    if back_to_subscription_id and back_to_subscription_id > 0:
+        back_callback = SubscriptionCb(action="open", sub=back_to_subscription_id).pack()
+    else:
+        back_action = "subscriptions" if back_to_subscriptions else "main"
+        back_callback = MainMenuCb(action=back_action).pack()
+
+    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=back_callback))
     return kb.as_markup()
 
 

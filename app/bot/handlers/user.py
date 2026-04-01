@@ -255,6 +255,28 @@ async def plan_action_callback(
 
     if callback_data.action == "back":
         if callback_data.mode == "extend":
+            if callback_data.sub > 0:
+                try:
+                    subscription = await business.get_user_subscription(
+                        user_id=profile.id,
+                        subscription_id=callback_data.sub,
+                        refresh_remote=True,
+                    )
+                except NotFoundError:
+                    subscriptions = await business.list_user_subscriptions(profile.id, refresh_remote=True)
+                    await replace_callback_message(
+                        callback,
+                        text=subscriptions_list_text(subscriptions, settings.timezone),
+                        reply_markup=subscriptions_keyboard(subscriptions),
+                    )
+                else:
+                    await replace_callback_message(
+                        callback,
+                        text=subscription_details_text(subscription, settings.timezone),
+                        reply_markup=subscription_actions_keyboard(subscription),
+                    )
+                return
+
             subscriptions = await business.list_user_subscriptions(profile.id, refresh_remote=True)
             await replace_callback_message(
                 callback,
@@ -441,7 +463,7 @@ async def subscription_callback(
                 mode="extend",
                 sub_id=callback_data.sub,
                 include_trial=False,
-                back_to_subscriptions=True,
+                back_to_subscription_id=callback_data.sub,
             ),
         )
         return
