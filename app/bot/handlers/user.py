@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 from zoneinfo import ZoneInfo
@@ -7,14 +7,15 @@ from aiogram import Bot, F, Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
-from app.bot.callbacks import MainMenuCb, PlanActionCb, ReferralCb, RewardChoiceCb, SubscriptionCb, TariffCb
+from app.bot.callbacks import DeviceCb, MainMenuCb, PlanActionCb, ReferralCb, RewardChoiceCb, SubscriptionCb, TariffCb
 from app.bot.keyboards import (
-    devices_back_keyboard,
+    devices_manage_keyboard,
     invite_link_keyboard,
     invite_menu_keyboard,
     main_menu_keyboard,
     plan_actions_keyboard,
     reward_choice_keyboard,
+    subscription_actions_keyboard,
     subscriptions_keyboard,
     tariffs_keyboard,
 )
@@ -28,7 +29,8 @@ from app.bot.texts import (
     payment_pending_text,
     payment_success_text,
     plan_details_text,
-    subscriptions_text,
+    subscription_details_text,
+    subscriptions_list_text,
     tariffs_text,
     trial_success_text,
 )
@@ -84,8 +86,8 @@ async def _send_referral_event_notification(
         await bot.send_message(
             chat_id=event.referrer_telegram_id,
             text=(
-                "Ваш приглашённый пользователь оплатил подписку.\n"
-                f"Бонус +{event.bonus_days} дней уже начислен автоматически."
+                "Р’Р°С€ РїСЂРёРіР»Р°С€С‘РЅРЅС‹Р№ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РѕРїР»Р°С‚РёР» РїРѕРґРїРёСЃРєСѓ.\n"
+                f"Р‘РѕРЅСѓСЃ +{event.bonus_days} РґРЅРµР№ СѓР¶Рµ РЅР°С‡РёСЃР»РµРЅ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё."
             ),
         )
         return
@@ -97,8 +99,8 @@ async def _send_referral_event_notification(
         await bot.send_message(
             chat_id=event.referrer_telegram_id,
             text=(
-                "Ваш приглашённый пользователь оплатил подписку.\n"
-                f"Выберите ключ для бонуса +{event.bonus_days} дней."
+                "Р’Р°С€ РїСЂРёРіР»Р°С€С‘РЅРЅС‹Р№ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РѕРїР»Р°С‚РёР» РїРѕРґРїРёСЃРєСѓ.\n"
+                f"Р’С‹Р±РµСЂРёС‚Рµ РєР»СЋС‡ РґР»СЏ Р±РѕРЅСѓСЃР° +{event.bonus_days} РґРЅРµР№."
             ),
             reply_markup=reward_choice_keyboard(event.referral_id, subscriptions),
         )
@@ -108,8 +110,8 @@ async def _send_referral_event_notification(
         await bot.send_message(
             chat_id=event.referrer_telegram_id,
             text=(
-                "Ваш приглашённый пользователь оплатил подписку, но у вас нет активных ключей для продления.\n"
-                "Бонус не был применён."
+                "Р’Р°С€ РїСЂРёРіР»Р°С€С‘РЅРЅС‹Р№ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РѕРїР»Р°С‚РёР» РїРѕРґРїРёСЃРєСѓ, РЅРѕ Сѓ РІР°СЃ РЅРµС‚ Р°РєС‚РёРІРЅС‹С… РєР»СЋС‡РµР№ РґР»СЏ РїСЂРѕРґР»РµРЅРёСЏ.\n"
+                "Р‘РѕРЅСѓСЃ РЅРµ Р±С‹Р» РїСЂРёРјРµРЅС‘РЅ."
             ),
         )
 
@@ -174,10 +176,10 @@ async def main_menu_callback(
         return
 
     if callback_data.action == "subscriptions":
-        subscriptions = await business.list_user_subscriptions(profile.id)
+        subscriptions = await business.list_user_subscriptions(profile.id, refresh_remote=True)
         await replace_callback_message(
             callback,
-            text=subscriptions_text(subscriptions, settings.timezone),
+            text=subscriptions_list_text(subscriptions, settings.timezone),
             reply_markup=subscriptions_keyboard(subscriptions),
         )
         return
@@ -206,7 +208,7 @@ async def tariff_select_callback(
         except TrialAlreadyUsedError:
             await replace_callback_message(
                 callback,
-                text="Пробный тариф уже был выдан ранее. Выберите платный тариф.",
+                text="РџСЂРѕР±РЅС‹Р№ С‚Р°СЂРёС„ СѓР¶Рµ Р±С‹Р» РІС‹РґР°РЅ СЂР°РЅРµРµ. Р’С‹Р±РµСЂРёС‚Рµ РїР»Р°С‚РЅС‹Р№ С‚Р°СЂРёС„.",
                 reply_markup=tariffs_keyboard(
                     mode="new",
                     include_trial=False,
@@ -217,7 +219,7 @@ async def tariff_select_callback(
         except RemnawaveAPIError:
             await replace_callback_message(
                 callback,
-                text="Не удалось создать пробный ключ. Попробуйте чуть позже или обратитесь в поддержку.",
+                text="РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РїСЂРѕР±РЅС‹Р№ РєР»СЋС‡. РџРѕРїСЂРѕР±СѓР№С‚Рµ С‡СѓС‚СЊ РїРѕР·Р¶Рµ РёР»Рё РѕР±СЂР°С‚РёС‚РµСЃСЊ РІ РїРѕРґРґРµСЂР¶РєСѓ.",
                 reply_markup=main_menu_keyboard(support_username=settings.support_username),
             )
             return
@@ -253,10 +255,10 @@ async def plan_action_callback(
 
     if callback_data.action == "back":
         if callback_data.mode == "extend":
-            subscriptions = await business.list_user_subscriptions(profile.id)
+            subscriptions = await business.list_user_subscriptions(profile.id, refresh_remote=True)
             await replace_callback_message(
                 callback,
-                text=subscriptions_text(subscriptions, settings.timezone),
+                text=subscriptions_list_text(subscriptions, settings.timezone),
                 reply_markup=subscriptions_keyboard(subscriptions),
             )
             return
@@ -310,7 +312,7 @@ async def plan_action_callback(
         except (PaymentGatewayError, RemnawaveAPIError) as exc:
             await replace_callback_message(
                 callback,
-                text=f"Ошибка проверки оплаты: {exc}",
+                text=f"РћС€РёР±РєР° РїСЂРѕРІРµСЂРєРё РѕРїР»Р°С‚С‹: {exc}",
                 reply_markup=plan_actions_keyboard(
                     plan_code=plan.code,
                     mode=callback_data.mode,
@@ -322,7 +324,7 @@ async def plan_action_callback(
         if result.state == "not_found":
             await replace_callback_message(
                 callback,
-                text="Активный заказ не найден. Нажмите «Оплатить 💳», чтобы создать заказ.",
+                text="РђРєС‚РёРІРЅС‹Р№ Р·Р°РєР°Р· РЅРµ РЅР°Р№РґРµРЅ. РќР°Р¶РјРёС‚Рµ В«РћРїР»Р°С‚РёС‚СЊ рџ’іВ», С‡С‚РѕР±С‹ СЃРѕР·РґР°С‚СЊ Р·Р°РєР°Р·.",
                 reply_markup=plan_actions_keyboard(
                     plan_code=plan.code,
                     mode=callback_data.mode,
@@ -358,7 +360,7 @@ async def plan_action_callback(
         if result.subscription is None:
             await replace_callback_message(
                 callback,
-                text="Оплата подтверждена, но подписка не найдена. Напишите в поддержку.",
+                text="РћРїР»Р°С‚Р° РїРѕРґС‚РІРµСЂР¶РґРµРЅР°, РЅРѕ РїРѕРґРїРёСЃРєР° РЅРµ РЅР°Р№РґРµРЅР°. РќР°РїРёС€РёС‚Рµ РІ РїРѕРґРґРµСЂР¶РєСѓ.",
                 reply_markup=main_menu_keyboard(support_username=settings.support_username),
             )
             return
@@ -387,11 +389,12 @@ async def subscription_callback(
 ) -> None:
     profile = await _ensure_profile(business, callback.from_user)
 
-    if callback_data.action == "connect":
+    if callback_data.action == "open":
         try:
             subscription = await business.get_user_subscription(
                 user_id=profile.id,
                 subscription_id=callback_data.sub,
+                refresh_remote=True,
             )
         except NotFoundError as exc:
             await replace_callback_message(
@@ -403,13 +406,30 @@ async def subscription_callback(
 
         await replace_callback_message(
             callback,
-            text=(
-                f"Подключение к ключу <code>{subscription.remna_username}</code>\n"
-                "Нажмите на ссылку ниже:\n"
-                f"<a href=\"{subscription.subscription_url}\">{subscription.subscription_url}</a>\n\n"
-                f"<code>{subscription.subscription_url}</code>"
-            ),
-            reply_markup=devices_back_keyboard(),
+            text=subscription_details_text(subscription, settings.timezone),
+            reply_markup=subscription_actions_keyboard(subscription),
+        )
+        return
+
+    if callback_data.action == "connect":
+        try:
+            subscription = await business.get_user_subscription(
+                user_id=profile.id,
+                subscription_id=callback_data.sub,
+                refresh_remote=True,
+            )
+        except NotFoundError as exc:
+            await replace_callback_message(
+                callback,
+                text=str(exc),
+                reply_markup=main_menu_keyboard(support_username=settings.support_username),
+            )
+            return
+
+        await replace_callback_message(
+            callback,
+            text=subscription_details_text(subscription, settings.timezone),
+            reply_markup=subscription_actions_keyboard(subscription),
         )
         return
 
@@ -449,8 +469,48 @@ async def subscription_callback(
                 tz=settings.timezone,
                 limit=settings.device_limit,
             ),
-            reply_markup=devices_back_keyboard(),
+            reply_markup=devices_manage_keyboard(callback_data.sub, devices),
         )
+
+
+@router.callback_query(DeviceCb.filter(F.action == "detach"))
+async def device_detach_callback(
+    callback: CallbackQuery,
+    callback_data: DeviceCb,
+    business: BusinessService,
+    settings: Settings,
+) -> None:
+    profile = await _ensure_profile(business, callback.from_user)
+    try:
+        subscription, removed_device, total, devices = await business.detach_subscription_device(
+            user_id=profile.id,
+            subscription_id=callback_data.sub,
+            device_index=callback_data.idx,
+        )
+    except (NotFoundError, RemnawaveAPIError) as exc:
+        await replace_callback_message(
+            callback,
+            text=str(exc),
+            reply_markup=main_menu_keyboard(support_username=settings.support_username),
+        )
+        return
+
+    platform = removed_device.platform or "Unknown"
+    model = removed_device.device_model or "Unknown"
+    await replace_callback_message(
+        callback,
+        text=(
+            f"Устройство отключено: <b>{platform} / {model}</b>\n\n"
+            + devices_text(
+                subscription=subscription,
+                total=total,
+                devices=devices,
+                tz=settings.timezone,
+                limit=settings.device_limit,
+            )
+        ),
+        reply_markup=devices_manage_keyboard(callback_data.sub, devices),
+    )
 
 
 @router.callback_query(ReferralCb.filter(F.action == "link"))
@@ -490,9 +550,10 @@ async def referral_reward_choice_callback(
     await replace_callback_message(
         callback,
         text=(
-            "Бонус успешно применён.\n"
-            f"Ключ: <code>{subscription.remna_username}</code>\n"
-            f"Новый срок: <b>{subscription.expire_at.astimezone(ZoneInfo(settings.timezone)).strftime('%d.%m.%Y %H:%M')}</b>"
+            "Р‘РѕРЅСѓСЃ СѓСЃРїРµС€РЅРѕ РїСЂРёРјРµРЅС‘РЅ.\n"
+            f"РљР»СЋС‡: <code>{subscription.remna_username}</code>\n"
+            f"РќРѕРІС‹Р№ СЃСЂРѕРє: <b>{subscription.expire_at.astimezone(ZoneInfo(settings.timezone)).strftime('%d.%m.%Y %H:%M')}</b>"
         ),
         reply_markup=main_menu_keyboard(support_username=settings.support_username),
     )
+

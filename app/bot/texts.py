@@ -178,3 +178,23 @@ def admin_issue_success_text(target: UserProfile, subscription: UserSubscription
         f"Ссылка: <a href=\"{escape(subscription.subscription_url)}\">Открыть</a>"
     )
 
+
+def subscriptions_list_text(subscriptions: list[UserSubscription], tz: str) -> str:
+    if not subscriptions:
+        return "У вас пока нет подписок. Нажмите «Подключиться 🛜», чтобы создать первую."
+
+    lines = ["<b>Мои подписки</b>", "Выберите подписку из списка ниже:"]
+    for index, subscription in enumerate(subscriptions, start=1):
+        lines.append(
+            f"{index}. <code>{escape(subscription.remna_username)}</code> — до <b>{_fmt_dt(subscription.expire_at, tz)}</b>"
+        )
+    return "\n".join(lines)
+
+
+def subscription_details_text(subscription: UserSubscription, tz: str) -> str:
+    return (
+        f"<b>Подписка: {escape(subscription.remna_username)}</b>\n"
+        f"Срок до: <b>{_fmt_dt(subscription.expire_at, tz)}</b>\n"
+        f"Ссылка: <a href=\"{escape(subscription.subscription_url)}\">Открыть</a>\n"
+        f"<code>{escape(subscription.subscription_url)}</code>"
+    )

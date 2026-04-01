@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -6,6 +6,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.bot.callbacks import (
     AdminIssueCb,
     AdminMenuCb,
+    DeviceCb,
     MainMenuCb,
     PlanActionCb,
     ReferralCb,
@@ -15,6 +16,7 @@ from app.bot.callbacks import (
 )
 from app.db.models import UserSubscription
 from app.domain.plans import PAID_PLAN_CODES, PLANS
+from app.services.remnawave import RemnawaveDevice
 
 EMOJI_CONNECT = "\U0001F6DC"
 EMOJI_SUBS = "\U0001F4E6"
@@ -26,6 +28,7 @@ EMOJI_CHECK = "\u2705"
 EMOJI_EXTEND = "\u267b\ufe0f"
 EMOJI_DEVICES = "\U0001F4F1"
 EMOJI_GIFT = "\U0001F381"
+EMOJI_DISCONNECT = "\u274c"
 RUBLE = "\u20bd"
 
 
@@ -99,26 +102,65 @@ def plan_actions_keyboard(*, plan_code: str, mode: str, sub_id: int = 0) -> Inli
 
 
 def subscriptions_keyboard(subscriptions: list[UserSubscription]) -> InlineKeyboardMarkup:
+    """List screen: one button per subscription + back."""
     kb = InlineKeyboardBuilder()
     for subscription in subscriptions:
         kb.row(
             InlineKeyboardButton(
-                text=f"Подключиться #{subscription.id} {EMOJI_CONNECT}",
-                callback_data=SubscriptionCb(action="connect", sub=subscription.id).pack(),
+                text=subscription.remna_username,
+                callback_data=SubscriptionCb(action="open", sub=subscription.id).pack(),
             )
-        )
-        kb.row(
-            InlineKeyboardButton(
-                text=f"Продлить {EMOJI_EXTEND}",
-                callback_data=SubscriptionCb(action="extend", sub=subscription.id).pack(),
-            ),
-            InlineKeyboardButton(
-                text=f"Устройства {EMOJI_DEVICES}",
-                callback_data=SubscriptionCb(action="devices", sub=subscription.id).pack(),
-            ),
         )
 
     kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=MainMenuCb(action="main").pack()))
+    return kb.as_markup()
+
+
+def subscription_actions_keyboard(subscription: UserSubscription) -> InlineKeyboardMarkup:
+    """Details screen for one subscription."""
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(
+            text=f"Подключиться {EMOJI_CONNECT}",
+            url=subscription.subscription_url,
+        )
+    )
+    kb.row(
+        InlineKeyboardButton(
+            text=f"Устройства {EMOJI_DEVICES}",
+            callback_data=SubscriptionCb(action="devices", sub=subscription.id).pack(),
+        )
+    )
+    kb.row(
+        InlineKeyboardButton(
+            text=f"Продлить {EMOJI_EXTEND}",
+            callback_data=SubscriptionCb(action="extend", sub=subscription.id).pack(),
+        )
+    )
+    kb.row(InlineKeyboardButton(text=f"Назад {EMOJI_BACK}", callback_data=MainMenuCb(action="subscriptions").pack()))
+    return kb.as_markup()
+
+
+def devices_manage_keyboard(subscription_id: int, devices: list[RemnawaveDevice]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+
+    for idx, device in enumerate(devices, start=1):
+        platform = device.platform or "Unknown"
+        model = device.device_model or "Unknown"
+        caption = f"{EMOJI_DISCONNECT} Отключить {idx}: {platform}/{model}"
+        kb.row(
+            InlineKeyboardButton(
+                text=caption[:60],
+                callback_data=DeviceCb(action="detach", sub=subscription_id, idx=idx).pack(),
+            )
+        )
+
+    kb.row(
+        InlineKeyboardButton(
+            text=f"Назад {EMOJI_BACK}",
+            callback_data=SubscriptionCb(action="open", sub=subscription_id).pack(),
+        )
+    )
     return kb.as_markup()
 
 

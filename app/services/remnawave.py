@@ -237,8 +237,8 @@ class RemnawaveClient:
         response = await self._request("GET", f"/api/users/by-uuid/{user_uuid}")
         return self._map_user(response)
 
-    async def get_user_devices(self, *, user_uuid: str) -> tuple[int, list[RemnawaveDevice]]:
-        response = await self._request("GET", f"/api/hwid/devices/{user_uuid}")
+    @staticmethod
+    def _map_devices_payload(response: dict[str, Any]) -> tuple[int, list[RemnawaveDevice]]:
         total = int(response.get("total", 0))
         devices_raw = response.get("devices", [])
 
@@ -257,3 +257,18 @@ class RemnawaveClient:
                 )
             )
         return total, devices
+
+    async def get_user_devices(self, *, user_uuid: str) -> tuple[int, list[RemnawaveDevice]]:
+        response = await self._request("GET", f"/api/hwid/devices/{user_uuid}")
+        return self._map_devices_payload(response)
+
+    async def delete_user_device(self, *, user_uuid: str, hwid: str) -> tuple[int, list[RemnawaveDevice]]:
+        response = await self._request(
+            "POST",
+            "/api/hwid/devices/delete",
+            json_data={
+                "userUuid": user_uuid,
+                "hwid": hwid,
+            },
+        )
+        return self._map_devices_payload(response)

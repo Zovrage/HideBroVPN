@@ -25,6 +25,12 @@ class SubscriptionCb(CallbackData, prefix="sb"):
     sub: int
 
 
+class DeviceCb(CallbackData, prefix="dv"):
+    action: str
+    sub: int
+    idx: int = 0
+
+
 class ReferralCb(CallbackData, prefix="rf"):
     action: str
 

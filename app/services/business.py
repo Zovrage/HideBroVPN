@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -144,16 +144,40 @@ class BusinessService:
             )
             return int(count or 0)
 
-    async def list_user_subscriptions(self, user_id: int) -> list[UserSubscription]:
+    @staticmethod
+    def _apply_remote_to_subscription(subscription: UserSubscription, remote_user) -> None:
+        subscription.remna_username = remote_user.username
+        subscription.remna_short_uuid = remote_user.short_uuid
+        subscription.subscription_url = remote_user.subscription_url
+        subscription.expire_at = remote_user.expire_at
+
+    async def list_user_subscriptions(self, user_id: int, *, refresh_remote: bool = False) -> list[UserSubscription]:
         async with self._session_factory() as session:
             rows = await session.scalars(
                 select(UserSubscription)
                 .where(UserSubscription.user_id == user_id)
                 .order_by(desc(UserSubscription.expire_at), desc(UserSubscription.id))
             )
-            return list(rows)
+            subscriptions = list(rows)
 
-    async def get_user_subscription(self, *, user_id: int, subscription_id: int) -> UserSubscription:
+        if not refresh_remote:
+            return subscriptions
+
+        for subscription in subscriptions:
+            try:
+                remote = await self._remnawave.get_user(user_uuid=subscription.remna_uuid)
+            except Exception:
+                continue
+            self._apply_remote_to_subscription(subscription, remote)
+        return subscriptions
+
+    async def get_user_subscription(
+        self,
+        *,
+        user_id: int,
+        subscription_id: int,
+        refresh_remote: bool = False,
+    ) -> UserSubscription:
         async with self._session_factory() as session:
             subscription = await session.scalar(
                 select(UserSubscription).where(
@@ -163,8 +187,15 @@ class BusinessService:
             )
             if not subscription:
                 raise NotFoundError("Подписка не найдена")
-            return subscription
 
+        if refresh_remote:
+            try:
+                remote = await self._remnawave.get_user(user_uuid=subscription.remna_uuid)
+            except Exception:
+                return subscription
+            self._apply_remote_to_subscription(subscription, remote)
+
+        return subscription
     async def activate_trial(self, *, user_id: int) -> UserSubscription:
         now = self._now()
         expire_at = now + timedelta(days=self._settings.free_trial_days)
@@ -174,9 +205,9 @@ class BusinessService:
                 select(UserProfile).where(UserProfile.id == user_id).with_for_update()
             )
             if not profile:
-                raise NotFoundError("Профиль не найден")
+                raise NotFoundError("РџСЂРѕС„РёР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
             if profile.free_trial_used_at is not None:
-                raise TrialAlreadyUsedError("Пробный тариф уже был активирован")
+                raise TrialAlreadyUsedError("РџСЂРѕР±РЅС‹Р№ С‚Р°СЂРёС„ СѓР¶Рµ Р±С‹Р» Р°РєС‚РёРІРёСЂРѕРІР°РЅ")
 
             remna_user = await self._remnawave.create_user(
                 expire_at=expire_at,
@@ -211,16 +242,16 @@ class BusinessService:
     ) -> PaymentCreationResult:
         plan = get_plan(plan_code)
         if plan.is_trial:
-            raise ValueError("Пробный тариф не требует оплаты")
+            raise ValueError("РџСЂРѕР±РЅС‹Р№ С‚Р°СЂРёС„ РЅРµ С‚СЂРµР±СѓРµС‚ РѕРїР»Р°С‚С‹")
 
         async with self._session_factory() as session:
             profile = await session.scalar(select(UserProfile).where(UserProfile.id == user_id))
             if not profile:
-                raise NotFoundError("Пользователь не найден")
+                raise NotFoundError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
 
             if action == PaymentAction.EXTEND:
                 if not subscription_id:
-                    raise NotFoundError("Не передана подписка для продления")
+                    raise NotFoundError("РќРµ РїРµСЂРµРґР°РЅР° РїРѕРґРїРёСЃРєР° РґР»СЏ РїСЂРѕРґР»РµРЅРёСЏ")
                 target = await session.scalar(
                     select(UserSubscription).where(
                         UserSubscription.id == subscription_id,
@@ -228,7 +259,7 @@ class BusinessService:
                     )
                 )
                 if not target:
-                    raise NotFoundError("Подписка для продления не найдена")
+                    raise NotFoundError("РџРѕРґРїРёСЃРєР° РґР»СЏ РїСЂРѕРґР»РµРЅРёСЏ РЅРµ РЅР°Р№РґРµРЅР°")
 
             order = PaymentOrder(
                 user_id=user_id,
@@ -364,7 +395,7 @@ class BusinessService:
                 select(UserProfile).where(UserProfile.id == order.user_id).with_for_update()
             )
             if not profile:
-                raise NotFoundError("Пользователь не найден")
+                raise NotFoundError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
 
             expire_at = now + timedelta(days=plan.days)
             remna_user = await self._remnawave.create_user(
@@ -390,7 +421,7 @@ class BusinessService:
 
         if order.action_type == PaymentAction.EXTEND:
             if not order.subscription_id:
-                raise NotFoundError("Для продления не найдена подписка")
+                raise NotFoundError("Р”Р»СЏ РїСЂРѕРґР»РµРЅРёСЏ РЅРµ РЅР°Р№РґРµРЅР° РїРѕРґРїРёСЃРєР°")
 
             subscription = await session.scalar(
                 select(UserSubscription)
@@ -401,7 +432,7 @@ class BusinessService:
                 .with_for_update()
             )
             if not subscription:
-                raise NotFoundError("Подписка для продления не найдена")
+                raise NotFoundError("РџРѕРґРїРёСЃРєР° РґР»СЏ РїСЂРѕРґР»РµРЅРёСЏ РЅРµ РЅР°Р№РґРµРЅР°")
 
             base_date = subscription.expire_at if subscription.expire_at > now else now
             new_expire = base_date + timedelta(days=plan.days)
@@ -414,7 +445,7 @@ class BusinessService:
             subscription.is_active = True
             return subscription
 
-        raise ValueError(f"Неизвестное действие заказа: {order.action_type}")
+        raise ValueError(f"РќРµРёР·РІРµСЃС‚РЅРѕРµ РґРµР№СЃС‚РІРёРµ Р·Р°РєР°Р·Р°: {order.action_type}")
 
     async def _get_subscription_for_order(
         self,
@@ -526,7 +557,7 @@ class BusinessService:
                 select(UserProfile).where(UserProfile.telegram_id == referrer_telegram_id)
             )
             if not referrer:
-                raise AccessDeniedError("Пользователь не найден")
+                raise AccessDeniedError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
 
             referral = await session.scalar(
                 select(Referral)
@@ -539,7 +570,7 @@ class BusinessService:
                 .with_for_update()
             )
             if not referral:
-                raise NotFoundError("Бонус уже использован или недоступен")
+                raise NotFoundError("Р‘РѕРЅСѓСЃ СѓР¶Рµ РёСЃРїРѕР»СЊР·РѕРІР°РЅ РёР»Рё РЅРµРґРѕСЃС‚СѓРїРµРЅ")
 
             subscription = await session.scalar(
                 select(UserSubscription)
@@ -550,7 +581,7 @@ class BusinessService:
                 .with_for_update()
             )
             if not subscription:
-                raise NotFoundError("Подписка для бонуса не найдена")
+                raise NotFoundError("РџРѕРґРїРёСЃРєР° РґР»СЏ Р±РѕРЅСѓСЃР° РЅРµ РЅР°Р№РґРµРЅР°")
 
             updated = await self._extend_subscription_days(
                 session=session,
@@ -590,19 +621,40 @@ class BusinessService:
         user_id: int,
         subscription_id: int,
     ) -> tuple[UserSubscription, int, list[RemnawaveDevice]]:
-        async with self._session_factory() as session:
-            subscription = await session.scalar(
-                select(UserSubscription).where(
-                    UserSubscription.id == subscription_id,
-                    UserSubscription.user_id == user_id,
-                )
-            )
-            if not subscription:
-                raise NotFoundError("Подписка не найдена")
-
+        subscription = await self.get_user_subscription(
+            user_id=user_id,
+            subscription_id=subscription_id,
+            refresh_remote=True,
+        )
         total, devices = await self._remnawave.get_user_devices(user_uuid=subscription.remna_uuid)
         return subscription, total, devices
 
+    async def detach_subscription_device(
+        self,
+        *,
+        user_id: int,
+        subscription_id: int,
+        device_index: int,
+    ) -> tuple[UserSubscription, RemnawaveDevice, int, list[RemnawaveDevice]]:
+        if device_index < 1:
+            raise NotFoundError("Устройство не найдено")
+
+        subscription = await self.get_user_subscription(
+            user_id=user_id,
+            subscription_id=subscription_id,
+            refresh_remote=True,
+        )
+
+        _, devices = await self._remnawave.get_user_devices(user_uuid=subscription.remna_uuid)
+        if device_index > len(devices):
+            raise NotFoundError("Устройство не найдено")
+
+        removed_device = devices[device_index - 1]
+        total, updated_devices = await self._remnawave.delete_user_device(
+            user_uuid=subscription.remna_uuid,
+            hwid=removed_device.hwid,
+        )
+        return subscription, removed_device, total, updated_devices
     async def get_admin_stats(self) -> dict[str, int]:
         now = self._now()
         async with self._session_factory() as session:
@@ -654,7 +706,7 @@ class BusinessService:
         now = self._now()
         target = await self.find_profile_by_identifier(target_identifier)
         if not target:
-            raise NotFoundError("Пользователь по ID/username не найден")
+            raise NotFoundError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РїРѕ ID/username РЅРµ РЅР°Р№РґРµРЅ")
 
         expire_at = now + timedelta(days=days)
 
@@ -667,7 +719,7 @@ class BusinessService:
                 select(UserProfile).where(UserProfile.id == target.id).with_for_update()
             )
             if not locked_target:
-                raise NotFoundError("Пользователь не найден")
+                raise NotFoundError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
 
             remna_user = await self._remnawave.create_user(
                 expire_at=expire_at,
@@ -764,3 +816,4 @@ class BusinessService:
                     )
                 )
             return events
+
