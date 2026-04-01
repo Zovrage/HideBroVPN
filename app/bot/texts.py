@@ -198,3 +198,22 @@ def subscription_details_text(subscription: UserSubscription, tz: str) -> str:
         f"Ссылка: <a href=\"{escape(subscription.subscription_url)}\">Открыть</a>\n"
         f"<code>{escape(subscription.subscription_url)}</code>"
     )
+
+def admin_broadcast_prompt() -> str:
+    return (
+        "Отправьте одно сообщение для рассылки.\n"
+        "Можно текст, фото, видео или медиа с подписью."
+    )
+
+
+def admin_broadcast_invalid_text() -> str:
+    return "Поддерживается текст, фото, видео и подписи к ним. Отправьте сообщение ещё раз."
+
+
+def admin_broadcast_result_text(*, total: int, success: int, failed: int) -> str:
+    return (
+        "<b>Рассылка завершена</b>\n"
+        f"Всего получателей: <b>{total}</b>\n"
+        f"Успешно: <b>{success}</b>\n"
+        f"Ошибок: <b>{failed}</b>"
+    )

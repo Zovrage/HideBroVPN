@@ -28,6 +28,7 @@ EMOJI_CHECK = "\u2705"
 EMOJI_EXTEND = "\u267b\ufe0f"
 EMOJI_DEVICES = "\U0001F4F1"
 EMOJI_GIFT = "\U0001F381"
+EMOJI_BROADCAST = "\U0001F4E2"
 EMOJI_DISCONNECT = "\u274c"
 RUBLE = "\u20bd"
 
@@ -193,6 +194,7 @@ def admin_menu_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="Статистика", callback_data=AdminMenuCb(action="stats").pack()))
     kb.row(InlineKeyboardButton(text=f"Выдача ключей {EMOJI_GIFT}", callback_data=AdminMenuCb(action="issue").pack()))
+    kb.row(InlineKeyboardButton(text=f"Рассылка {EMOJI_BROADCAST}", callback_data=AdminMenuCb(action="broadcast").pack()))
     kb.row(InlineKeyboardButton(text="Главное меню", callback_data=AdminMenuCb(action="main").pack()))
     return kb.as_markup()
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from zoneinfo import ZoneInfo
 
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.types import CallbackQuery, Message
 
 from app.bot.callbacks import AdminIssueCb, AdminMenuCb
@@ -16,6 +18,9 @@ from app.bot.keyboards import (
 )
 from app.bot.states import AdminIssueState
 from app.bot.texts import (
+    admin_broadcast_invalid_text,
+    admin_broadcast_prompt,
+    admin_broadcast_result_text,
     admin_issue_days_prompt,
     admin_issue_success_text,
     admin_issue_target_prompt,
@@ -95,6 +100,15 @@ async def admin_menu_callback(
         )
         return
 
+    if callback_data.action == "broadcast":
+        await state.set_state(AdminIssueState.waiting_broadcast)
+        await replace_callback_message(
+            callback,
+            text=admin_broadcast_prompt(),
+            reply_markup=admin_issue_prompt_keyboard(),
+        )
+        return
+
     if callback_data.action == "main":
         await state.clear()
         text, keyboard = await _render_user_main(
@@ -138,6 +152,62 @@ async def admin_issue_target_input(
     await message.answer(
         admin_issue_days_prompt(identifier),
         reply_markup=admin_issue_days_keyboard(),
+    )
+
+
+@router.message(AdminIssueState.waiting_broadcast)
+async def admin_broadcast_input(
+    message: Message,
+    state: FSMContext,
+    business: BusinessService,
+    settings: Settings,
+) -> None:
+    if not _is_admin(settings, message.from_user.id):
+        return
+
+    has_supported_content = bool(
+        message.text or message.caption or message.photo or message.video
+    )
+    if not has_supported_content:
+        await message.answer(
+            admin_broadcast_invalid_text(),
+            reply_markup=admin_issue_prompt_keyboard(),
+        )
+        return
+
+    recipients = await business.list_all_telegram_ids()
+    total = len(recipients)
+    if total == 0:
+        await state.clear()
+        await message.answer(
+            admin_broadcast_result_text(total=0, success=0, failed=0),
+            reply_markup=admin_menu_keyboard(),
+        )
+        return
+
+    progress_message = await message.answer("Запускаю рассылку...")
+    success = 0
+    failed = 0
+
+    for telegram_id in recipients:
+        while True:
+            try:
+                await message.send_copy(chat_id=telegram_id)
+                success += 1
+                break
+            except TelegramRetryAfter as exc:
+                await asyncio.sleep(float(exc.retry_after))
+            except (TelegramForbiddenError, TelegramBadRequest):
+                failed += 1
+                break
+            except Exception:
+                failed += 1
+                break
+
+    await state.clear()
+    await progress_message.edit_text(
+        admin_broadcast_result_text(total=total, success=success, failed=failed),
+        reply_markup=admin_menu_keyboard(),
     )
 
 

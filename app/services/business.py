@@ -132,6 +132,13 @@ class BusinessService:
                 select(UserProfile).where(func.lower(UserProfile.username) == normalized)
             )
 
+    async def list_all_telegram_ids(self) -> list[int]:
+        async with self._session_factory() as session:
+            rows = await session.scalars(
+                select(UserProfile.telegram_id).order_by(UserProfile.id)
+            )
+            return [int(telegram_id) for telegram_id in rows]
+
     async def count_active_subscriptions(self, user_id: int) -> int:
         now = self._now()
         async with self._session_factory() as session:
