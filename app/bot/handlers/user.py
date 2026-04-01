@@ -86,8 +86,8 @@ async def _send_referral_event_notification(
         await bot.send_message(
             chat_id=event.referrer_telegram_id,
             text=(
-                "Р’Р°С€ РїСЂРёРіР»Р°С€С‘РЅРЅС‹Р№ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РѕРїР»Р°С‚РёР» РїРѕРґРїРёСЃРєСѓ.\n"
-                f"Р‘РѕРЅСѓСЃ +{event.bonus_days} РґРЅРµР№ СѓР¶Рµ РЅР°С‡РёСЃР»РµРЅ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё."
+                "Ваш приглашённый пользователь оплатил подписку.\n\n"
+                f"Бонус +{event.bonus_days} дней уже начислен автоматически."
             ),
         )
         return
@@ -99,8 +99,8 @@ async def _send_referral_event_notification(
         await bot.send_message(
             chat_id=event.referrer_telegram_id,
             text=(
-                "Р’Р°С€ РїСЂРёРіР»Р°С€С‘РЅРЅС‹Р№ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РѕРїР»Р°С‚РёР» РїРѕРґРїРёСЃРєСѓ.\n"
-                f"Р’С‹Р±РµСЂРёС‚Рµ РєР»СЋС‡ РґР»СЏ Р±РѕРЅСѓСЃР° +{event.bonus_days} РґРЅРµР№."
+                "Ваш приглашённый пользователь оплатил подписку.\n\n"
+                f"Выберите ключ для бонуса +{event.bonus_days} дней."
             ),
             reply_markup=reward_choice_keyboard(event.referral_id, subscriptions),
         )
@@ -110,8 +110,8 @@ async def _send_referral_event_notification(
         await bot.send_message(
             chat_id=event.referrer_telegram_id,
             text=(
-                "Р’Р°С€ РїСЂРёРіР»Р°С€С‘РЅРЅС‹Р№ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РѕРїР»Р°С‚РёР» РїРѕРґРїРёСЃРєСѓ, РЅРѕ Сѓ РІР°СЃ РЅРµС‚ Р°РєС‚РёРІРЅС‹С… РєР»СЋС‡РµР№ РґР»СЏ РїСЂРѕРґР»РµРЅРёСЏ.\n"
-                "Р‘РѕРЅСѓСЃ РЅРµ Р±С‹Р» РїСЂРёРјРµРЅС‘РЅ."
+                "Ваш приглашённый пользователь оплатил подписку, но у вас нет активных ключей для продления.\n"
+                "Бонус не был применён."
             ),
         )
 
@@ -208,7 +208,7 @@ async def tariff_select_callback(
         except TrialAlreadyUsedError:
             await replace_callback_message(
                 callback,
-                text="РџСЂРѕР±РЅС‹Р№ С‚Р°СЂРёС„ СѓР¶Рµ Р±С‹Р» РІС‹РґР°РЅ СЂР°РЅРµРµ. Р’С‹Р±РµСЂРёС‚Рµ РїР»Р°С‚РЅС‹Р№ С‚Р°СЂРёС„.",
+                text="Пробный тариф уже был выдан ранее. Выберите платный тариф.",
                 reply_markup=tariffs_keyboard(
                     mode="new",
                     include_trial=False,
@@ -219,7 +219,7 @@ async def tariff_select_callback(
         except RemnawaveAPIError:
             await replace_callback_message(
                 callback,
-                text="РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РїСЂРѕР±РЅС‹Р№ РєР»СЋС‡. РџРѕРїСЂРѕР±СѓР№С‚Рµ С‡СѓС‚СЊ РїРѕР·Р¶Рµ РёР»Рё РѕР±СЂР°С‚РёС‚РµСЃСЊ РІ РїРѕРґРґРµСЂР¶РєСѓ.",
+                text="Не удалось создать пробный ключ. Попробуйте чуть позже или обратитесь в поддержку.",
                 reply_markup=main_menu_keyboard(support_username=settings.support_username),
             )
             return
@@ -334,7 +334,7 @@ async def plan_action_callback(
         except (PaymentGatewayError, RemnawaveAPIError) as exc:
             await replace_callback_message(
                 callback,
-                text=f"РћС€РёР±РєР° РїСЂРѕРІРµСЂРєРё РѕРїР»Р°С‚С‹: {exc}",
+                text=f"Ошибка проверки оплаты: {exc}",
                 reply_markup=plan_actions_keyboard(
                     plan_code=plan.code,
                     mode=callback_data.mode,
@@ -346,7 +346,7 @@ async def plan_action_callback(
         if result.state == "not_found":
             await replace_callback_message(
                 callback,
-                text="РђРєС‚РёРІРЅС‹Р№ Р·Р°РєР°Р· РЅРµ РЅР°Р№РґРµРЅ. РќР°Р¶РјРёС‚Рµ В«РћРїР»Р°С‚РёС‚СЊ рџ’іВ», С‡С‚РѕР±С‹ СЃРѕР·РґР°С‚СЊ Р·Р°РєР°Р·.",
+                text="Активный заказ не найден. Нажмите «Оплатить», чтобы создать заказ.",
                 reply_markup=plan_actions_keyboard(
                     plan_code=plan.code,
                     mode=callback_data.mode,
@@ -382,7 +382,7 @@ async def plan_action_callback(
         if result.subscription is None:
             await replace_callback_message(
                 callback,
-                text="РћРїР»Р°С‚Р° РїРѕРґС‚РІРµСЂР¶РґРµРЅР°, РЅРѕ РїРѕРґРїРёСЃРєР° РЅРµ РЅР°Р№РґРµРЅР°. РќР°РїРёС€РёС‚Рµ РІ РїРѕРґРґРµСЂР¶РєСѓ.",
+                text="Оплата подтверждена, но подписка не найдена. Напишите в поддержку.",
                 reply_markup=main_menu_keyboard(support_username=settings.support_username),
             )
             return
@@ -572,9 +572,9 @@ async def referral_reward_choice_callback(
     await replace_callback_message(
         callback,
         text=(
-            "Р‘РѕРЅСѓСЃ СѓСЃРїРµС€РЅРѕ РїСЂРёРјРµРЅС‘РЅ.\n"
-            f"РљР»СЋС‡: <code>{subscription.remna_username}</code>\n"
-            f"РќРѕРІС‹Р№ СЃСЂРѕРє: <b>{subscription.expire_at.astimezone(ZoneInfo(settings.timezone)).strftime('%d.%m.%Y %H:%M')}</b>"
+            "Бонус успешно применён.\n\n"
+            f"Ключ: <pre>{subscription.remna_username}</pre>\n\n"
+            f"Новый срок: <b>{subscription.expire_at.astimezone(ZoneInfo(settings.timezone)).strftime('%d.%m.%Y %H:%M')}</b>"
         ),
         reply_markup=main_menu_keyboard(support_username=settings.support_username),
     )

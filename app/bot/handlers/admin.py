@@ -272,10 +272,9 @@ async def admin_issue_days_callback(
     await callback.bot.send_message(
         chat_id=target.telegram_id,
         text=(
-            "Администратор выдал вам бесплатный ключ.\n"
-            f"Ключ: <code>{subscription.remna_username}</code>\n"
+            "Администратор выдал вам бесплатный ключ.\n\n"
+            f"Ключ: <code>{subscription.remna_username}</code>\n\n"
             f"Действует до: <b>{subscription.expire_at.astimezone(ZoneInfo(settings.timezone)).strftime('%d.%m.%Y %H:%M')}</b>\n"
-            f"Ссылка: <a href=\"{subscription.subscription_url}\">Подключиться</a>"
         ),
         reply_markup=main_menu_keyboard(support_username=settings.support_username),
         disable_web_page_preview=True,
