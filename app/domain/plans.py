@@ -9,7 +9,7 @@ class TariffPlan:
     title: str
     days: int
     price_rub: int
-    emoji: str
+    emoji: str = ""
     is_trial: bool = False
 
 

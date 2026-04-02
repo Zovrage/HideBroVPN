@@ -48,7 +48,7 @@ def plan_details_text(plan: TariffPlan, *, mode: str) -> str:
     action = "Продление" if mode == "extend" else "Подключение"
     return (
         f"<b>{action}</b>\n\n"
-        f"Тариф: {plan.emoji} {escape(plan.title)}\n\n"
+        f"Тариф: {escape(plan.title)}\n\n"
         f"Срок: <b>{plan.days} дней</b>\n\n"
         f"Стоимость: <b>{plan.price_rub} {RUBLE}</b>\n\n"
         "Нажмите «Оплатить», затем кнопку «Оплатить заказ», и после оплаты нажмите «Проверить оплату»."
@@ -58,12 +58,12 @@ def plan_details_text(plan: TariffPlan, *, mode: str) -> str:
 def payment_created_text(plan: TariffPlan, payment_url: str | None) -> str:
     if payment_url:
         return (
-            f"Заказ на тариф {plan.emoji} <b>{escape(plan.title)}</b> создан.\n\n"
+            f"Заказ на тариф <b>{escape(plan.title)}</b> создан.\n\n"
             f"Сумма: <b>{plan.price_rub} {RUBLE}</b>\n\n"
             "Для оплаты используйте кнопку «Оплатить заказ» ниже."
         )
     return (
-        f"Заказ на тариф {plan.emoji} <b>{escape(plan.title)}</b> создан.\n\n"
+        f"Заказ на тариф <b>{escape(plan.title)}</b> создан.\n\n"
         "Платежный провайдер не вернул ссылку оплаты. Обратитесь в поддержку."
     )
 
