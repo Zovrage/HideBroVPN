@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     yookassa_return_url: str | None = Field(default=None, alias="YOOKASSA_RETURN_URL")
 
     referral_bonus_days: int = Field(default=5, alias="REFERRAL_BONUS_DAYS")
-    device_limit: int = Field(default=3, alias="DEVICE_LIMIT")
+    device_limit: int = Field(default=1, alias="DEVICE_LIMIT")
 
     username_prefix: str = Field(default="HideBro_", alias="USERNAME_PREFIX")
     username_min_digits: int = Field(default=6, alias="USERNAME_MIN_DIGITS")

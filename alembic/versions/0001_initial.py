@@ -49,7 +49,7 @@ def upgrade() -> None:
         sa.Column("remna_username", sa.String(length=64), nullable=False),
         sa.Column("subscription_url", sa.Text(), nullable=False),
         sa.Column("expire_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("device_limit", sa.Integer(), nullable=False, server_default="3"),
+        sa.Column("device_limit", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("is_trial", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),

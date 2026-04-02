@@ -52,9 +52,9 @@ def tariffs_keyboard(
             continue
 
         if plan.is_trial:
-            text = plan.title
+            text = f"{plan.title} - 1 устройство"
         else:
-            text = f"{plan.title} - {plan.price_rub} {RUBLE}"
+            text = f"{plan.title} - {plan.price_rub} {RUBLE} - 1 устройство"
 
         kb.row(
             InlineKeyboardButton(

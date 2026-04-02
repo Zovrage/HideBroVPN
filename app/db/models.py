@@ -74,7 +74,7 @@ class UserSubscription(Base):
     subscription_url: Mapped[str] = mapped_column(Text)
 
     expire_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    device_limit: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    device_limit: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     is_trial: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
@@ -153,4 +153,3 @@ class AdminGrant(Base):
     days: Mapped[int] = mapped_column(Integer, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
