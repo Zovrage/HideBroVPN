@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 async def run() -> None:
     settings = get_settings()
     setup_logging(settings.log_level)
+    logger.info("Configured device limit: %s", settings.device_limit)
 
     db = Database(settings.postgres_dsn)
 

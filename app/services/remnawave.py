@@ -21,6 +21,7 @@ class RemnawaveUser:
     username: str
     subscription_url: str
     expire_at: datetime
+    hwid_device_limit: int | None = None
 
 
 @dataclass(slots=True)
@@ -188,12 +189,23 @@ class RemnawaveClient:
 
     @staticmethod
     def _map_user(data: dict[str, Any]) -> RemnawaveUser:
+        raw_limit = data.get("hwidDeviceLimit")
+        hwid_device_limit: int | None
+        if raw_limit is None:
+            hwid_device_limit = None
+        else:
+            try:
+                hwid_device_limit = int(raw_limit)
+            except (TypeError, ValueError):
+                hwid_device_limit = None
+
         return RemnawaveUser(
             uuid=data["uuid"],
             short_uuid=data.get("shortUuid"),
             username=data["username"],
             subscription_url=data["subscriptionUrl"],
             expire_at=_parse_dt(data["expireAt"]),
+            hwid_device_limit=hwid_device_limit,
         )
 
     async def create_user(self, *, expire_at: datetime, telegram_id: int | None = None) -> RemnawaveUser:
@@ -212,7 +224,19 @@ class RemnawaveClient:
 
             try:
                 response = await self._request("POST", "/api/users", json_data=payload)
-                return self._map_user(response)
+                created_user = self._map_user(response)
+                if created_user.hwid_device_limit != self._device_limit:
+                    logger.warning(
+                        "Remnawave create_user returned hwidDeviceLimit=%s for %s; forcing limit=%s with PATCH",
+                        created_user.hwid_device_limit,
+                        created_user.username,
+                        self._device_limit,
+                    )
+                    created_user = await self.extend_user(
+                        user_uuid=created_user.uuid,
+                        new_expire_at=created_user.expire_at,
+                    )
+                return created_user
             except RemnawaveAPIError as exc:
                 if self._is_duplicate_username(exc):
                     last_error = exc

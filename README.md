@@ -1,55 +1,58 @@
 # HideBroVPN Telegram Bot
 
-Production-oriented async Telegram bot for selling VPN subscriptions with Remnawave integration.
+Продакшен-ориентированный асинхронный Telegram-бот для продажи VPN-подписок с интеграцией Remnawave.
 
-## Features
+## Возможности
 
-- Async bot on `aiogram 3`
-- PostgreSQL for persistent business data
-- Redis for FSM/session state
-- Remnawave user creation/extension
-  - Username format: `HideBro_<6-7 digits>`
-  - Device limit: `3`
-  - Internal squad is assigned at create time
-- Tariffs:
-  - `3 days` free trial (once)
-  - `1 month` - `100 ₽`
-  - `3 months` - `300 ₽`
-  - `6 months` - `600 ₽`
-  - `12 months` - `1000 ₽`
-- Payment flow (`Pay` + `Check payment`) via YooKassa (or `mock` mode)
-- Referral program:
-  - Personal invite link
-  - +5 days for inviter after invited user's first paid purchase
-  - If inviter has multiple keys, inviter chooses the key to extend
-- Admin panel `/admin`
-  - Available only for admin IDs from env
-  - Stats
-  - Free key issuance by Telegram ID / username
+- Асинхронный бот на `aiogram 3`
+- PostgreSQL для бизнес-данных
+- Redis для FSM и сессий
+- Remnawave:
+  - создание и продление пользователей
+  - формат имени: `HideBro_<6-7 цифр>`
+  - лимит устройств: `1`
+  - внутренний сквад назначается при создании
+- Тарифы:
+  - `3 дня` бесплатно (один раз)
+  - `1 месяц` — `100 ₽`
+  - `3 месяца` — `300 ₽`
+  - `6 месяцев` — `600 ₽`
+  - `12 месяцев` — `1000 ₽`
+- Оплата через YooKassa (или `mock` режим)
+- Реферальная программа:
+  - персональная ссылка
+  - +5 дней пригласившему за первую покупку приглашенного
+  - при наличии нескольких ключей пригласивший выбирает, какой продлить
+- Админ-панель `/admin`:
+  - доступ только для `ADMIN_IDS`
+  - статистика
+  - выдача бесплатных ключей по Telegram ID или username
+  - рассылка сообщения (текст, фото, видео или медиа с подписью)
 
-## Quick Start (Docker)
+## Быстрый старт (Docker)
 
-1. Copy env template:
+1. Скопируйте шаблон окружения:
 
 ```bash
 cp .env.example .env
 ```
 
-2. Fill required values in `.env`:
+2. Заполните `.env`:
 - `BOT_TOKEN`
 - `ADMIN_IDS`
 - `REMNAWAVE_*`
-- `YOOKASSA_*` (if `PAYMENTS_PROVIDER=yookassa`)
+- `YOOKASSA_*` (если `PAYMENTS_PROVIDER=yookassa`)
 
-3. Run:
+3. Запустите:
 
 ```bash
 docker compose up -d --build
 ```
 
-Bot container runs migrations automatically (`alembic upgrade head`) on start.
+При старте контейнера выполняются миграции:
+`alembic upgrade head`.
 
-## Local Run
+## Локальный запуск
 
 ```bash
 python -m venv .venv
@@ -59,22 +62,47 @@ alembic upgrade head
 python -m app.main
 ```
 
-## Main Flows
+## Основные сценарии
 
-- `/start` -> main menu
-- `Подключиться` -> tariffs
-  - Paid tariffs: `Оплатить`, `Проверить оплату`, `Назад`
-- `Мои подписки` -> list with actions
+- `/start` — главное меню
+- `Подключиться` — выбор тарифа
+  - для платных тарифов доступны: `Оплатить`, `Проверить оплату`, `Назад`
+- `Мои подписки` — список подписок
   - `Подключиться`
   - `Продлить`
   - `Устройства`
-- `Пригласить друга` -> personal referral link
-- `Тех поддержка` -> opens `@HideBroSupport`
-- `/admin` -> admin panel (admins only)
+- `Пригласить друга` — персональная реферальная ссылка
+- `Тех поддержка` — открывает `@HideBroSupport`
+- `/admin` — админ-панель (только для админов)
 
-## Notes
+## Настройки Remnawave
 
-- Remnawave auth supports:
-  - `REMNAWAVE_API_TOKEN`, or
-  - `REMNAWAVE_ADMIN_USERNAME` + `REMNAWAVE_ADMIN_PASSWORD`
-- Ensure `REMNAWAVE_INTERNAL_SQUAD_UUID` is valid in your panel.
+Варианты авторизации:
+- `REMNAWAVE_API_TOKEN`, или
+- `REMNAWAVE_ADMIN_USERNAME` + `REMNAWAVE_ADMIN_PASSWORD`
+
+Обязательно укажите корректный `REMNAWAVE_INTERNAL_SQUAD_UUID` из панели.
+
+## Переменные окружения
+
+Минимально необходимые:
+
+- `BOT_TOKEN`
+- `ADMIN_IDS`
+- `POSTGRES_DSN`
+- `REDIS_DSN`
+- `REMNAWAVE_BASE_URL`
+- `REMNAWAVE_INTERNAL_SQUAD_UUID`
+- `PAYMENTS_PROVIDER`
+
+Для YooKassa:
+
+- `YOOKASSA_SHOP_ID`
+- `YOOKASSA_SECRET_KEY`
+- `YOOKASSA_RETURN_URL`
+
+## Примечания
+
+- Лимит устройств задается через `DEVICE_LIMIT` в `.env`.
+- Если изменили `.env` на сервере, перезапустите контейнер:
+  `docker compose up -d --build`
