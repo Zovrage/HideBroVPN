@@ -240,6 +240,14 @@ def admin_issue_prompt_keyboard() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+def admin_issue_device_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="1 устройство", callback_data=AdminIssueCb(action="limit", value="1").pack()))
+    kb.row(InlineKeyboardButton(text="3 устройства", callback_data=AdminIssueCb(action="limit", value="3").pack()))
+    kb.row(InlineKeyboardButton(text="Назад", callback_data=AdminMenuCb(action="back").pack()))
+    return kb.as_markup()
+
+
 def admin_issue_days_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     used_days: set[int] = set()

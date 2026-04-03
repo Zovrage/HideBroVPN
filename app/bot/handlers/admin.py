@@ -12,6 +12,7 @@ from aiogram.types import CallbackQuery, Message
 from app.bot.callbacks import AdminIssueCb, AdminMenuCb
 from app.bot.keyboards import (
     admin_issue_days_keyboard,
+    admin_issue_device_keyboard,
     admin_issue_prompt_keyboard,
     admin_menu_keyboard,
     main_menu_keyboard,
@@ -21,6 +22,7 @@ from app.bot.texts import (
     admin_broadcast_invalid_text,
     admin_broadcast_prompt,
     admin_broadcast_result_text,
+    admin_issue_device_prompt,
     admin_issue_days_prompt,
     admin_issue_success_text,
     admin_issue_target_prompt,
@@ -149,9 +151,10 @@ async def admin_issue_target_input(
         return
 
     await state.update_data(target_identifier=identifier)
+    await state.set_state(AdminIssueState.waiting_device_limit)
     await message.answer(
-        admin_issue_days_prompt(identifier),
-        reply_markup=admin_issue_days_keyboard(),
+        admin_issue_device_prompt(identifier),
+        reply_markup=admin_issue_device_keyboard(),
     )
 
 
@@ -223,6 +226,36 @@ async def admin_issue_days_callback(
         await callback.answer()
         return
 
+    if callback_data.action == "limit":
+        data = await state.get_data()
+        target_identifier = data.get("target_identifier")
+        if not target_identifier:
+            await replace_callback_message(
+                callback,
+                text="Сначала укажите пользователя (ID/username).",
+                reply_markup=admin_menu_keyboard(),
+            )
+            return
+
+        try:
+            device_limit = int(callback_data.value)
+        except ValueError:
+            await replace_callback_message(
+                callback,
+                text="Неверный лимит устройств. Попробуйте ещё раз.",
+                reply_markup=admin_menu_keyboard(),
+            )
+            return
+
+        await state.update_data(device_limit=device_limit)
+        await state.set_state(AdminIssueState.waiting_days)
+        await replace_callback_message(
+            callback,
+            text=admin_issue_days_prompt(target_identifier),
+            reply_markup=admin_issue_days_keyboard(),
+        )
+        return
+
     if callback_data.action != "days":
         await callback.answer()
         return
@@ -247,11 +280,21 @@ async def admin_issue_days_callback(
         )
         return
 
+    device_limit = data.get("device_limit")
+    if device_limit is None:
+        await replace_callback_message(
+            callback,
+            text="Сначала выберите лимит устройств.",
+            reply_markup=admin_menu_keyboard(),
+        )
+        return
+
     try:
         target, subscription = await business.admin_issue_subscription(
             admin_telegram_id=callback.from_user.id,
             target_identifier=target_identifier,
             days=days,
+            device_limit=int(device_limit),
         )
     except (NotFoundError, RemnawaveAPIError) as exc:
         await replace_callback_message(
@@ -275,6 +318,7 @@ async def admin_issue_days_callback(
             "Администратор выдал вам бесплатный ключ.\n\n"
             f"Ключ: <code>{subscription.remna_username}</code>\n\n"
             f"Действует до: <b>{subscription.expire_at.astimezone(ZoneInfo(settings.timezone)).strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+            f"Лимит: <b>{subscription.device_limit} устройства</b>\n\n"
         ),
         reply_markup=main_menu_keyboard(support_username=settings.support_username),
         disable_web_page_preview=True,

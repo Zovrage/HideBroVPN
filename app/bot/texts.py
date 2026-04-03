@@ -191,15 +191,21 @@ def admin_issue_target_prompt() -> str:
     return "Отправьте ID пользователя или @username, кому нужно выдать бесплатный ключ."
 
 
+def admin_issue_device_prompt(identifier: str) -> str:
+    return f"Получатель: <b>{escape(identifier)}</b>\n\nВыберите лимит устройств:"
+
+
 def admin_issue_days_prompt(identifier: str) -> str:
     return f"Получатель: <b>{escape(identifier)}</b>\n\nВыберите срок выдачи:"
 
 
 def admin_issue_success_text(target: UserProfile, subscription: UserSubscription, tz: str) -> str:
     label = f"@{target.username}" if target.username else str(target.telegram_id)
+    limit_label = _device_limit_short_label(subscription.device_limit)
     return (
         f"Ключ выдан пользователю <b>{escape(label)}</b>.\n\n"
-        f"До: <b>{_fmt_dt(subscription.expire_at, tz)}</b>"
+        f"До: <b>{_fmt_dt(subscription.expire_at, tz)}</b>\n\n"
+        f"Лимит: <b>{limit_label}</b>"
     )
 
 

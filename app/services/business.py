@@ -814,6 +814,7 @@ class BusinessService:
         admin_telegram_id: int,
         target_identifier: str,
         days: int,
+        device_limit: int,
     ) -> tuple[UserProfile, UserSubscription]:
         now = self._now()
         target = await self.find_profile_by_identifier(target_identifier)
@@ -836,6 +837,7 @@ class BusinessService:
             remna_user = await self._remnawave.create_user(
                 expire_at=expire_at,
                 telegram_id=locked_target.telegram_id,
+                device_limit=device_limit,
             )
 
             subscription = UserSubscription(
@@ -845,7 +847,7 @@ class BusinessService:
                 remna_username=remna_user.username,
                 subscription_url=remna_user.subscription_url,
                 expire_at=remna_user.expire_at,
-                device_limit=self._settings.device_limit,
+                device_limit=device_limit,
                 is_trial=False,
                 is_active=True,
             )
