@@ -205,8 +205,8 @@ async def device_tier_callback(
     settings: Settings,
 ) -> None:
     profile = await _ensure_profile(business, callback.from_user)
-    include_trial = profile.free_trial_used_at is None
     device_limit = callback_data.limit
+    include_trial = device_limit == 1 and profile.free_trial_used_at is None
     await replace_callback_message(
         callback,
         text=tariffs_text(include_trial=include_trial, mode="new", device_limit=device_limit),
@@ -249,6 +249,13 @@ async def tariff_select_callback(
                 ),
             )
             return
+        except ValueError as exc:
+            await replace_callback_message(
+                callback,
+                text=str(exc),
+                reply_markup=main_menu_keyboard(support_username=settings.support_username),
+            )
+            return
         except RemnawaveAPIError:
             await replace_callback_message(
                 callback,
@@ -285,7 +292,7 @@ async def tariff_select_callback(
 
     await replace_callback_message(
         callback,
-        text=payment_created_text(created.plan, created.order.payment_url),
+        text=payment_created_text(created.plan, created.order.amount_rub, created.order.payment_url),
         reply_markup=plan_actions_keyboard(
             plan_code=plan.code,
             mode=callback_data.mode,
@@ -373,7 +380,7 @@ async def plan_action_callback(
 
         await replace_callback_message(
             callback,
-            text=payment_created_text(created.plan, created.order.payment_url),
+            text=payment_created_text(created.plan, created.order.amount_rub, created.order.payment_url),
             reply_markup=plan_actions_keyboard(
                 plan_code=plan.code,
                 mode=callback_data.mode,
@@ -424,7 +431,7 @@ async def plan_action_callback(
 
             await replace_callback_message(
                 callback,
-                text=payment_created_text(created.plan, created.order.payment_url),
+                text=payment_created_text(created.plan, created.order.amount_rub, created.order.payment_url),
                 reply_markup=plan_actions_keyboard(
                     plan_code=plan.code,
                     mode=callback_data.mode,
@@ -539,6 +546,20 @@ async def subscription_callback(
         return
 
     if callback_data.action == "extend":
+        try:
+            subscription = await business.get_user_subscription(
+                user_id=profile.id,
+                subscription_id=callback_data.sub,
+                refresh_remote=False,
+            )
+        except NotFoundError as exc:
+            await replace_callback_message(
+                callback,
+                text=str(exc),
+                reply_markup=main_menu_keyboard(support_username=settings.support_username),
+            )
+            return
+
         await replace_callback_message(
             callback,
             text=tariffs_text(include_trial=False, mode="extend"),
@@ -546,7 +567,7 @@ async def subscription_callback(
                 mode="extend",
                 sub_id=callback_data.sub,
                 include_trial=False,
-                device_limit=0,
+                device_limit=subscription.device_limit,
                 back_to_subscription_id=callback_data.sub,
             ),
         )

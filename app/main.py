@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 
 import redis.asyncio as redis
@@ -82,11 +83,24 @@ async def run() -> None:
     dp["business"] = business
     dp["bot_username"] = me.username
 
+    async def _subscription_watchdog() -> None:
+        while True:
+            try:
+                await business.process_subscription_notifications(bot=bot, tz=settings.timezone)
+            except Exception:
+                logger.exception("Subscription notification loop failed")
+            await asyncio.sleep(900)
+
+    watchdog_task = asyncio.create_task(_subscription_watchdog())
+
     try:
         logger.info("Bot %s started", me.username)
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
+        watchdog_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await watchdog_task
         await remnawave.close()
         await payments.close()
         await db.dispose()

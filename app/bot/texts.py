@@ -43,6 +43,14 @@ def _device_limit_label(limit: int | None) -> str:
     return f"на {limit} устройства"
 
 
+def _device_limit_short_label(limit: int | None) -> str:
+    if limit is None:
+        return ""
+    if limit == 1:
+        return "1 устройство"
+    return f"{limit} устройства"
+
+
 def connect_device_tier_text() -> str:
     return "Выберите вариант подписки по числу устройств:"
 
@@ -65,22 +73,22 @@ def tariffs_text(*, include_trial: bool, mode: str, device_limit: int | None = N
     )
 
 
-def plan_details_text(plan: TariffPlan, *, mode: str) -> str:
+def plan_details_text(plan: TariffPlan, *, mode: str, amount_rub: int) -> str:
     action = "Продление" if mode == "extend" else "Подключение"
     return (
         f"<b>{action}</b>\n\n"
         f"Тариф: {escape(plan.title)}\n\n"
         f"Срок: <b>{plan.days} дней</b>\n\n"
-        f"Стоимость: <b>{plan.price_rub} {RUBLE}</b>\n\n"
+        f"Стоимость: <b>{amount_rub} {RUBLE}</b>\n\n"
         "Нажмите «Оплатить», затем кнопку «Оплатить заказ», и после оплаты нажмите «Проверить оплату»."
     )
 
 
-def payment_created_text(plan: TariffPlan, payment_url: str | None) -> str:
+def payment_created_text(plan: TariffPlan, amount_rub: int, payment_url: str | None) -> str:
     if payment_url:
         return (
             f"Заказ на тариф <b>{escape(plan.title)}</b> создан.\n\n"
-            f"Сумма: <b>{plan.price_rub} {RUBLE}</b>\n\n"
+            f"Сумма: <b>{amount_rub} {RUBLE}</b>\n\n"
             "Для оплаты используйте кнопку «Оплатить заказ» ниже."
         )
     return (
@@ -208,9 +216,11 @@ def subscriptions_list_text(subscriptions: list[UserSubscription], tz: str) -> s
 
 
 def subscription_details_text(subscription: UserSubscription, tz: str) -> str:
+    limit_label = _device_limit_short_label(subscription.device_limit)
     return (
         f"<b>Подписка: {escape(subscription.remna_username)}</b>\n\n"
-        f"Срок до: <b>{_fmt_dt(subscription.expire_at, tz)}</b>"
+        f"Срок до: <b>{_fmt_dt(subscription.expire_at, tz)}</b>\n\n"
+        f"Лимит: <b>{limit_label}</b>"
     )
 
 

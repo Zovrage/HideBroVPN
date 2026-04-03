@@ -276,6 +276,21 @@ class RemnawaveClient:
         response = await self._request("GET", f"/api/users/by-uuid/{user_uuid}")
         return self._map_user(response)
 
+    async def delete_user(self, *, user_uuid: str) -> None:
+        try:
+            await self._request("DELETE", f"/api/users/{user_uuid}")
+            return
+        except RemnawaveAPIError as exc:
+            last_error = exc
+
+        try:
+            await self._request("POST", "/api/users/delete", json_data={"uuid": user_uuid})
+            return
+        except RemnawaveAPIError as exc:
+            last_error = exc
+
+        raise last_error
+
     @staticmethod
     def _map_devices_payload(response: dict[str, Any]) -> tuple[int, list[RemnawaveDevice]]:
         total = int(response.get("total", 0))

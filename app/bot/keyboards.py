@@ -16,7 +16,7 @@ from app.bot.callbacks import (
     TariffCb,
 )
 from app.db.models import UserSubscription
-from app.domain.plans import PAID_PLAN_CODES, PLANS
+from app.domain.plans import PAID_PLAN_CODES, PLANS, get_plan_price
 from app.services.remnawave import RemnawaveDevice
 
 RUBLE = "\u20bd"
@@ -70,7 +70,8 @@ def tariffs_keyboard(
         if plan.is_trial:
             text = f"{plan.title}" + (f" - {device_suffix}" if device_suffix else "")
         else:
-            text = f"{plan.title} - {plan.price_rub} {RUBLE}" + (
+            price_rub = get_plan_price(plan.code, device_limit if device_limit > 0 else 1)
+            text = f"{plan.title} - {price_rub} {RUBLE}" + (
                 f" - {device_suffix}" if device_suffix else ""
             )
 
@@ -214,6 +215,13 @@ def invite_menu_keyboard() -> InlineKeyboardMarkup:
 def invite_link_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="Назад", callback_data=MainMenuCb(action="referral").pack()))
+    return kb.as_markup()
+
+
+def expired_subscription_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="Продлить", callback_data=MainMenuCb(action="subscriptions").pack()))
+    kb.row(InlineKeyboardButton(text="Главное меню", callback_data=MainMenuCb(action="main").pack()))
     return kb.as_markup()
 
 

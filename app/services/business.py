@@ -3,8 +3,10 @@
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Literal
 
+from aiogram import Bot
 from aiogram.types import User
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -19,14 +21,16 @@ from app.db.models import (
     UserProfile,
     UserSubscription,
 )
-from app.domain.plans import TariffPlan, get_plan
+from app.domain.plans import TariffPlan, get_plan, get_plan_price
 from app.services.errors import (
     AccessDeniedError,
     NotFoundError,
     TrialAlreadyUsedError,
 )
+from app.services.errors import RemnawaveAPIError
 from app.services.payments import BasePaymentGateway, map_gateway_status
 from app.services.remnawave import RemnawaveClient, RemnawaveDevice
+from app.bot.keyboards import expired_subscription_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +210,8 @@ class BusinessService:
     async def activate_trial(self, *, user_id: int, device_limit: int | None = None) -> UserSubscription:
         now = self._now()
         expire_at = now + timedelta(days=self._settings.free_trial_days)
+        if device_limit is not None and device_limit != 1:
+            raise ValueError("Пробный тариф доступен только для 1 устройства")
         effective_limit = self._settings.device_limit if device_limit is None else device_limit
 
         async with self._session_factory() as session:
@@ -270,19 +276,24 @@ class BusinessService:
                 )
                 if not target:
                     raise NotFoundError("РџРѕРґРїРёСЃРєР° РґР»СЏ РїСЂРѕРґР»РµРЅРёСЏ РЅРµ РЅР°Р№РґРµРЅР°")
+                if device_limit is None:
+                    device_limit = target.device_limit
+
+            effective_limit = device_limit or self._settings.device_limit
+            amount_rub = get_plan_price(plan.code, effective_limit)
 
             order = PaymentOrder(
                 user_id=user_id,
                 subscription_id=subscription_id,
                 plan_code=plan.code,
                 action_type=action,
-                amount_rub=plan.price_rub,
+                amount_rub=amount_rub,
                 status=PaymentStatus.PENDING,
                 gateway=self._payments.provider_name,
                 extra_payload={
                     "plan": plan.code,
                     "action": action.value,
-                    "device_limit": device_limit,
+                    "device_limit": effective_limit,
                 },
             )
             session.add(order)
@@ -290,14 +301,14 @@ class BusinessService:
 
             payment_result = await self._payments.create_payment(
                 local_order_id=order.id,
-                amount_rub=plan.price_rub,
+                amount_rub=amount_rub,
                 description=f"HideBroVPN: {plan.title}",
                 metadata={
                     "user_id": str(user_id),
                     "plan": plan.code,
                     "action": action.value,
                     "subscription_id": str(subscription_id or 0),
-                    "device_limit": str(device_limit or 0),
+                    "device_limit": str(effective_limit),
                 },
             )
             order.gateway_payment_id = payment_result.gateway_payment_id
@@ -676,6 +687,86 @@ class BusinessService:
             hwid=removed_device.hwid,
         )
         return subscription, removed_device, total, updated_devices
+
+    async def process_subscription_notifications(self, *, bot: Bot, tz: str) -> None:
+        now = self._now()
+        notify_window = now + timedelta(days=3)
+
+        async with self._session_factory() as session:
+            rows = await session.execute(
+                select(UserSubscription, UserProfile.telegram_id)
+                .join(UserProfile, UserProfile.id == UserSubscription.user_id)
+                .where(
+                    UserSubscription.deleted_at.is_(None),
+                    UserSubscription.expire_at <= notify_window,
+                )
+                .order_by(UserSubscription.expire_at.asc())
+            )
+            items = rows.all()
+
+            for subscription, telegram_id in items:
+                remaining = subscription.expire_at - now
+                remaining_seconds = remaining.total_seconds()
+
+                if remaining_seconds <= 0:
+                    if now >= subscription.expire_at + timedelta(days=2):
+                        try:
+                            await self._remnawave.delete_user(user_uuid=subscription.remna_uuid)
+                        except RemnawaveAPIError as exc:
+                            logger.warning(
+                                "Failed to delete Remnawave user %s: %s",
+                                subscription.remna_uuid,
+                                exc,
+                            )
+                            continue
+
+                        subscription.deleted_at = now
+                        subscription.is_active = False
+
+                        local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
+                        await bot.send_message(
+                            chat_id=int(telegram_id),
+                            text=(
+                                f"Срок подписки <b>{subscription.remna_username}</b> истек "
+                                f"{local_expire.strftime('%d.%m.%Y %H:%M')}.\n\n"
+                                "Ключ удалён из системы."
+                            ),
+                            reply_markup=expired_subscription_keyboard(),
+                        )
+                    continue
+
+                if (
+                    subscription.notified_3d_at is None
+                    and remaining_seconds <= 3 * 86400
+                    and remaining_seconds > 2 * 86400
+                ):
+                    subscription.notified_3d_at = now
+                    local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
+                    await bot.send_message(
+                        chat_id=int(telegram_id),
+                        text=(
+                            f"Срок подписки <b>{subscription.remna_username}</b> истекает через 3 дня.\n\n"
+                            f"Дата окончания: <b>{local_expire.strftime('%d.%m.%Y %H:%M')}</b>"
+                        ),
+                    )
+                    continue
+
+                if (
+                    subscription.notified_1d_at is None
+                    and remaining_seconds <= 86400
+                    and remaining_seconds > 0
+                ):
+                    subscription.notified_1d_at = now
+                    local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
+                    await bot.send_message(
+                        chat_id=int(telegram_id),
+                        text=(
+                            f"Срок подписки <b>{subscription.remna_username}</b> истекает через 1 день.\n\n"
+                            f"Дата окончания: <b>{local_expire.strftime('%d.%m.%Y %H:%M')}</b>"
+                        ),
+                    )
+
+            await session.commit()
     async def get_admin_stats(self) -> dict[str, int]:
         now = self._now()
         async with self._session_factory() as session:
