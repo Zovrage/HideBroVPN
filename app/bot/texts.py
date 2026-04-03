@@ -35,13 +35,34 @@ def main_menu_text(profile: UserProfile, active_subscriptions_count: int) -> str
     )
 
 
-def tariffs_text(*, include_trial: bool, mode: str) -> str:
+def _device_limit_label(limit: int | None) -> str:
+    if limit is None:
+        return ""
+    if limit == 1:
+        return "на 1 устройство"
+    return f"на {limit} устройства"
+
+
+def connect_device_tier_text() -> str:
+    return "Выберите вариант подписки по числу устройств:"
+
+
+def tariffs_text(*, include_trial: bool, mode: str, device_limit: int | None = None) -> str:
+    limit_label = _device_limit_label(device_limit)
     if mode == "extend":
         return "Выберите срок продления для вашей подписки:"
 
     if include_trial:
-        return "Выберите тариф для подключения. Пробный тариф доступен только один раз."
-    return "Выберите тариф для подключения. Пробный тариф уже использован."
+        return (
+            "Выберите тариф для подключения"
+            + (f" {limit_label}" if limit_label else "")
+            + ". Пробный тариф доступен только один раз."
+        )
+    return (
+        "Выберите тариф для подключения"
+        + (f" {limit_label}" if limit_label else "")
+        + ". Пробный тариф уже использован."
+    )
 
 
 def plan_details_text(plan: TariffPlan, *, mode: str) -> str:

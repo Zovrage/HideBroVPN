@@ -203,9 +203,10 @@ class BusinessService:
             self._apply_remote_to_subscription(subscription, remote)
 
         return subscription
-    async def activate_trial(self, *, user_id: int) -> UserSubscription:
+    async def activate_trial(self, *, user_id: int, device_limit: int | None = None) -> UserSubscription:
         now = self._now()
         expire_at = now + timedelta(days=self._settings.free_trial_days)
+        effective_limit = self._settings.device_limit if device_limit is None else device_limit
 
         async with self._session_factory() as session:
             profile = await session.scalar(
@@ -219,6 +220,7 @@ class BusinessService:
             remna_user = await self._remnawave.create_user(
                 expire_at=expire_at,
                 telegram_id=profile.telegram_id,
+                device_limit=effective_limit,
             )
 
             subscription = UserSubscription(
@@ -228,7 +230,7 @@ class BusinessService:
                 remna_username=remna_user.username,
                 subscription_url=remna_user.subscription_url,
                 expire_at=remna_user.expire_at,
-                device_limit=self._settings.device_limit,
+                device_limit=effective_limit,
                 is_trial=True,
                 is_active=True,
             )
@@ -246,6 +248,7 @@ class BusinessService:
         plan_code: str,
         action: PaymentAction,
         subscription_id: int | None,
+        device_limit: int | None = None,
     ) -> PaymentCreationResult:
         plan = get_plan(plan_code)
         if plan.is_trial:
@@ -279,6 +282,7 @@ class BusinessService:
                 extra_payload={
                     "plan": plan.code,
                     "action": action.value,
+                    "device_limit": device_limit,
                 },
             )
             session.add(order)
@@ -293,6 +297,7 @@ class BusinessService:
                     "plan": plan.code,
                     "action": action.value,
                     "subscription_id": str(subscription_id or 0),
+                    "device_limit": str(device_limit or 0),
                 },
             )
             order.gateway_payment_id = payment_result.gateway_payment_id
@@ -404,10 +409,17 @@ class BusinessService:
             if not profile:
                 raise NotFoundError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
 
+            raw_limit = order.extra_payload.get("device_limit") if order.extra_payload else None
+            try:
+                effective_limit = int(raw_limit) if raw_limit else self._settings.device_limit
+            except (TypeError, ValueError):
+                effective_limit = self._settings.device_limit
+
             expire_at = now + timedelta(days=plan.days)
             remna_user = await self._remnawave.create_user(
                 expire_at=expire_at,
                 telegram_id=profile.telegram_id,
+                device_limit=effective_limit,
             )
 
             subscription = UserSubscription(
@@ -417,7 +429,7 @@ class BusinessService:
                 remna_username=remna_user.username,
                 subscription_url=remna_user.subscription_url,
                 expire_at=remna_user.expire_at,
-                device_limit=self._settings.device_limit,
+                device_limit=effective_limit,
                 is_trial=False,
                 is_active=True,
             )
@@ -446,6 +458,7 @@ class BusinessService:
             remna_user = await self._remnawave.extend_user(
                 user_uuid=subscription.remna_uuid,
                 new_expire_at=new_expire,
+                device_limit=subscription.device_limit,
             )
             subscription.expire_at = remna_user.expire_at
             subscription.subscription_url = remna_user.subscription_url
@@ -616,6 +629,7 @@ class BusinessService:
         remna_user = await self._remnawave.extend_user(
             user_uuid=subscription.remna_uuid,
             new_expire_at=new_expire,
+            device_limit=subscription.device_limit,
         )
         subscription.expire_at = remna_user.expire_at
         subscription.subscription_url = remna_user.subscription_url

@@ -7,10 +7,15 @@ class MainMenuCb(CallbackData, prefix="mm"):
     action: str
 
 
+class DeviceTierCb(CallbackData, prefix="dt"):
+    limit: int
+
+
 class TariffCb(CallbackData, prefix="tf"):
     plan: str
     mode: str
     sub: int = 0
+    limit: int = 0
 
 
 class PlanActionCb(CallbackData, prefix="pa"):
@@ -18,6 +23,7 @@ class PlanActionCb(CallbackData, prefix="pa"):
     plan: str
     mode: str
     sub: int = 0
+    limit: int = 0
 
 
 class SubscriptionCb(CallbackData, prefix="sb"):

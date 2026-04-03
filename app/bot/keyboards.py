@@ -7,6 +7,7 @@ from app.bot.callbacks import (
     AdminIssueCb,
     AdminMenuCb,
     DeviceCb,
+    DeviceTierCb,
     MainMenuCb,
     PlanActionCb,
     ReferralCb,
@@ -35,13 +36,23 @@ def main_menu_keyboard(*, support_username: str) -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+def device_tiers_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="1 устройство", callback_data=DeviceTierCb(limit=1).pack()))
+    kb.row(InlineKeyboardButton(text="3 устройства", callback_data=DeviceTierCb(limit=3).pack()))
+    kb.row(InlineKeyboardButton(text="Назад", callback_data=MainMenuCb(action="main").pack()))
+    return kb.as_markup()
+
+
 def tariffs_keyboard(
     *,
     mode: str,
     sub_id: int = 0,
     include_trial: bool = True,
+    device_limit: int = 1,
     back_to_subscriptions: bool = False,
     back_to_subscription_id: int | None = None,
+    back_to_connect: bool = False,
 ) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
 
@@ -51,22 +62,32 @@ def tariffs_keyboard(
         if not include_trial and code not in PAID_PLAN_CODES:
             continue
 
+        device_suffix = ""
+        if device_limit > 0:
+            device_suffix = (
+                f"{device_limit} устройство" if device_limit == 1 else f"{device_limit} устройства"
+            )
         if plan.is_trial:
-            text = f"{plan.title} - 1 устройство"
+            text = f"{plan.title}" + (f" - {device_suffix}" if device_suffix else "")
         else:
-            text = f"{plan.title} - {plan.price_rub} {RUBLE} - 1 устройство"
+            text = f"{plan.title} - {plan.price_rub} {RUBLE}" + (
+                f" - {device_suffix}" if device_suffix else ""
+            )
 
         kb.row(
             InlineKeyboardButton(
                 text=text,
-                callback_data=TariffCb(plan=code, mode=mode, sub=sub_id).pack(),
+                callback_data=TariffCb(plan=code, mode=mode, sub=sub_id, limit=device_limit).pack(),
             )
         )
 
     if back_to_subscription_id and back_to_subscription_id > 0:
         back_callback = SubscriptionCb(action="open", sub=back_to_subscription_id).pack()
     else:
-        back_action = "subscriptions" if back_to_subscriptions else "main"
+        if back_to_connect:
+            back_action = "connect"
+        else:
+            back_action = "subscriptions" if back_to_subscriptions else "main"
         back_callback = MainMenuCb(action=back_action).pack()
 
     kb.row(InlineKeyboardButton(text="Назад", callback_data=back_callback))
@@ -79,6 +100,7 @@ def plan_actions_keyboard(
     mode: str,
     sub_id: int = 0,
     payment_url: str | None = None,
+    device_limit: int = 0,
 ) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
 
@@ -88,20 +110,26 @@ def plan_actions_keyboard(
         kb.row(
             InlineKeyboardButton(
                 text="Оплатить",
-                callback_data=PlanActionCb(action="pay", plan=plan_code, mode=mode, sub=sub_id).pack(),
+                callback_data=PlanActionCb(
+                    action="pay", plan=plan_code, mode=mode, sub=sub_id, limit=device_limit
+                ).pack(),
             )
         )
 
     kb.row(
         InlineKeyboardButton(
             text="Проверить оплату",
-            callback_data=PlanActionCb(action="check", plan=plan_code, mode=mode, sub=sub_id).pack(),
+            callback_data=PlanActionCb(
+                action="check", plan=plan_code, mode=mode, sub=sub_id, limit=device_limit
+            ).pack(),
         )
     )
     kb.row(
         InlineKeyboardButton(
             text="Назад",
-            callback_data=PlanActionCb(action="back", plan=plan_code, mode=mode, sub=sub_id).pack(),
+            callback_data=PlanActionCb(
+                action="back", plan=plan_code, mode=mode, sub=sub_id, limit=device_limit
+            ).pack(),
         )
     )
     return kb.as_markup()

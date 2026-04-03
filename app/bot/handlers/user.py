@@ -7,8 +7,18 @@ from aiogram import Bot, F, Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
-from app.bot.callbacks import DeviceCb, MainMenuCb, PlanActionCb, ReferralCb, RewardChoiceCb, SubscriptionCb, TariffCb
+from app.bot.callbacks import (
+    DeviceCb,
+    DeviceTierCb,
+    MainMenuCb,
+    PlanActionCb,
+    ReferralCb,
+    RewardChoiceCb,
+    SubscriptionCb,
+    TariffCb,
+)
 from app.bot.keyboards import (
+    device_tiers_keyboard,
     devices_manage_keyboard,
     invite_link_keyboard,
     invite_menu_keyboard,
@@ -20,6 +30,7 @@ from app.bot.keyboards import (
     tariffs_keyboard,
 )
 from app.bot.texts import (
+    connect_device_tier_text,
     devices_text,
     invite_link_text,
     invite_text,
@@ -162,15 +173,10 @@ async def main_menu_callback(
         return
 
     if callback_data.action == "connect":
-        include_trial = profile.free_trial_used_at is None
         await replace_callback_message(
             callback,
-            text=tariffs_text(include_trial=include_trial, mode="new"),
-            reply_markup=tariffs_keyboard(
-                mode="new",
-                include_trial=include_trial,
-                back_to_subscriptions=False,
-            ),
+            text=connect_device_tier_text(),
+            reply_markup=device_tiers_keyboard(),
         )
         return
 
@@ -191,6 +197,29 @@ async def main_menu_callback(
         )
 
 
+@router.callback_query(DeviceTierCb.filter())
+async def device_tier_callback(
+    callback: CallbackQuery,
+    callback_data: DeviceTierCb,
+    business: BusinessService,
+    settings: Settings,
+) -> None:
+    profile = await _ensure_profile(business, callback.from_user)
+    include_trial = profile.free_trial_used_at is None
+    device_limit = callback_data.limit
+    await replace_callback_message(
+        callback,
+        text=tariffs_text(include_trial=include_trial, mode="new", device_limit=device_limit),
+        reply_markup=tariffs_keyboard(
+            mode="new",
+            include_trial=include_trial,
+            device_limit=device_limit,
+            back_to_subscriptions=False,
+            back_to_connect=True,
+        ),
+    )
+
+
 @router.callback_query(TariffCb.filter())
 async def tariff_select_callback(
     callback: CallbackQuery,
@@ -203,7 +232,10 @@ async def tariff_select_callback(
 
     if plan.is_trial:
         try:
-            subscription = await business.activate_trial(user_id=profile.id)
+            subscription = await business.activate_trial(
+                user_id=profile.id,
+                device_limit=callback_data.limit or settings.device_limit,
+            )
         except TrialAlreadyUsedError:
             await replace_callback_message(
                 callback,
@@ -211,7 +243,9 @@ async def tariff_select_callback(
                 reply_markup=tariffs_keyboard(
                     mode="new",
                     include_trial=False,
+                    device_limit=callback_data.limit or settings.device_limit,
                     back_to_subscriptions=False,
+                    back_to_connect=True,
                 ),
             )
             return
@@ -239,6 +273,7 @@ async def tariff_select_callback(
             plan_code=plan.code,
             action=action_type,
             subscription_id=target_subscription_id,
+            device_limit=callback_data.limit or None,
         )
     except (NotFoundError, PaymentGatewayError, RemnawaveAPIError, ValueError) as exc:
         await replace_callback_message(
@@ -256,6 +291,7 @@ async def tariff_select_callback(
             mode=callback_data.mode,
             sub_id=callback_data.sub,
             payment_url=created.order.payment_url,
+            device_limit=callback_data.limit,
         ),
     )
 
@@ -305,8 +341,13 @@ async def plan_action_callback(
         include_trial = profile.free_trial_used_at is None
         await replace_callback_message(
             callback,
-            text=tariffs_text(include_trial=include_trial, mode="new"),
-            reply_markup=tariffs_keyboard(mode="new", include_trial=include_trial),
+            text=tariffs_text(include_trial=include_trial, mode="new", device_limit=callback_data.limit),
+            reply_markup=tariffs_keyboard(
+                mode="new",
+                include_trial=include_trial,
+                device_limit=callback_data.limit or settings.device_limit,
+                back_to_connect=True,
+            ),
         )
         return
 
@@ -320,6 +361,7 @@ async def plan_action_callback(
                 plan_code=plan.code,
                 action=action_type,
                 subscription_id=target_subscription_id,
+                device_limit=callback_data.limit or None,
             )
         except (NotFoundError, PaymentGatewayError, RemnawaveAPIError, ValueError) as exc:
             await replace_callback_message(
@@ -337,6 +379,7 @@ async def plan_action_callback(
                 mode=callback_data.mode,
                 sub_id=callback_data.sub,
                 payment_url=created.order.payment_url,
+                device_limit=callback_data.limit,
             ),
         )
         return
@@ -357,6 +400,7 @@ async def plan_action_callback(
                     plan_code=plan.code,
                     mode=callback_data.mode,
                     sub_id=callback_data.sub,
+                    device_limit=callback_data.limit,
                 ),
             )
             return
@@ -368,6 +412,7 @@ async def plan_action_callback(
                     plan_code=plan.code,
                     action=action_type,
                     subscription_id=target_subscription_id,
+                    device_limit=callback_data.limit or None,
                 )
             except (NotFoundError, PaymentGatewayError, RemnawaveAPIError, ValueError) as exc:
                 await replace_callback_message(
@@ -385,6 +430,7 @@ async def plan_action_callback(
                     mode=callback_data.mode,
                     sub_id=callback_data.sub,
                     payment_url=created.order.payment_url,
+                    device_limit=callback_data.limit,
                 ),
             )
             return
@@ -398,6 +444,7 @@ async def plan_action_callback(
                     mode=callback_data.mode,
                     sub_id=callback_data.sub,
                     payment_url=result.order.payment_url if result.order else None,
+                    device_limit=callback_data.limit,
                 ),
             )
             return
@@ -410,6 +457,7 @@ async def plan_action_callback(
                     plan_code=plan.code,
                     mode=callback_data.mode,
                     sub_id=callback_data.sub,
+                    device_limit=callback_data.limit,
                 ),
             )
             return
@@ -498,6 +546,7 @@ async def subscription_callback(
                 mode="extend",
                 sub_id=callback_data.sub,
                 include_trial=False,
+                device_limit=0,
                 back_to_subscription_id=callback_data.sub,
             ),
         )
@@ -524,7 +573,7 @@ async def subscription_callback(
                 total=total,
                 devices=devices,
                 tz=settings.timezone,
-                limit=settings.device_limit,
+                limit=subscription.device_limit,
             ),
             reply_markup=devices_manage_keyboard(callback_data.sub, devices),
         )
@@ -563,7 +612,7 @@ async def device_detach_callback(
                 total=total,
                 devices=devices,
                 tz=settings.timezone,
-                limit=settings.device_limit,
+                limit=subscription.device_limit,
             )
         ),
         reply_markup=devices_manage_keyboard(callback_data.sub, devices),

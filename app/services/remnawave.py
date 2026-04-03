@@ -208,15 +208,22 @@ class RemnawaveClient:
             hwid_device_limit=hwid_device_limit,
         )
 
-    async def create_user(self, *, expire_at: datetime, telegram_id: int | None = None) -> RemnawaveUser:
+    async def create_user(
+        self,
+        *,
+        expire_at: datetime,
+        telegram_id: int | None = None,
+        device_limit: int | None = None,
+    ) -> RemnawaveUser:
         last_error: RemnawaveAPIError | None = None
+        effective_limit = self._device_limit if device_limit is None else device_limit
 
         for _ in range(20):
             username = self._generate_username()
             payload: dict[str, Any] = {
                 "username": username,
                 "expireAt": _to_utc_iso(expire_at),
-                "hwidDeviceLimit": self._device_limit,
+                "hwidDeviceLimit": effective_limit,
                 "activeInternalSquads": [self._internal_squad_uuid],
             }
             if telegram_id is not None:
@@ -225,16 +232,17 @@ class RemnawaveClient:
             try:
                 response = await self._request("POST", "/api/users", json_data=payload)
                 created_user = self._map_user(response)
-                if created_user.hwid_device_limit != self._device_limit:
+                if created_user.hwid_device_limit != effective_limit:
                     logger.warning(
                         "Remnawave create_user returned hwidDeviceLimit=%s for %s; forcing limit=%s with PATCH",
                         created_user.hwid_device_limit,
                         created_user.username,
-                        self._device_limit,
+                        effective_limit,
                     )
                     created_user = await self.extend_user(
                         user_uuid=created_user.uuid,
                         new_expire_at=created_user.expire_at,
+                        device_limit=effective_limit,
                     )
                 return created_user
             except RemnawaveAPIError as exc:
@@ -247,11 +255,18 @@ class RemnawaveClient:
             raise last_error
         raise RemnawaveAPIError(500, "Не удалось сгенерировать уникальный username в Remnawave")
 
-    async def extend_user(self, *, user_uuid: str, new_expire_at: datetime) -> RemnawaveUser:
+    async def extend_user(
+        self,
+        *,
+        user_uuid: str,
+        new_expire_at: datetime,
+        device_limit: int | None = None,
+    ) -> RemnawaveUser:
+        effective_limit = self._device_limit if device_limit is None else device_limit
         payload = {
             "uuid": user_uuid,
             "expireAt": _to_utc_iso(new_expire_at),
-            "hwidDeviceLimit": self._device_limit,
+            "hwidDeviceLimit": effective_limit,
             "activeInternalSquads": [self._internal_squad_uuid],
         }
         response = await self._request("PATCH", "/api/users", json_data=payload)
