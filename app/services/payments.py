@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
@@ -58,11 +59,63 @@ class YooKassaGateway(BasePaymentGateway):
         timeout_sec: float = 20.0,
     ) -> None:
         self._return_url = return_url
+
+        timeout = httpx.Timeout(
+            connect=min(timeout_sec, 10),
+            read=timeout_sec,
+            write=timeout_sec,
+            pool=timeout_sec,
+        )
+
         self._client = httpx.AsyncClient(
             base_url="https://api.yookassa.ru",
-            timeout=timeout_sec,
+            timeout=timeout,
             auth=httpx.BasicAuth(shop_id, secret_key),
         )
+
+    async def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        retries = 3 if method == "GET" else 2
+        base_delay = 1
+
+        for attempt in range(1, retries + 1):
+            try:
+                logger.debug(f"[YooKassa] {method} {url}")
+
+                response = await self._client.request(method, url, **kwargs)
+
+                # retry на 5xx
+                if response.status_code >= 500:
+                    logger.warning(
+                        f"[YooKassa] Server error {response.status_code}, attempt {attempt}"
+                    )
+                    if attempt == retries:
+                        return response
+                    await asyncio.sleep(base_delay * attempt)
+                    continue
+
+                return response
+
+            except httpx.TimeoutException as exc:
+                logger.warning(
+                    f"[YooKassa] Timeout (attempt {attempt}/{retries})"
+                )
+                if attempt == retries:
+                    raise PaymentGatewayError(
+                        "Время ожидания платежной системы истекло. Попробуйте еще раз."
+                    ) from exc
+
+            except httpx.RequestError as exc:
+                logger.warning(
+                    f"[YooKassa] Network error (attempt {attempt}/{retries}): {exc}"
+                )
+                if attempt == retries:
+                    raise PaymentGatewayError(
+                        "Платежная система временно недоступна. Попробуйте позже."
+                    ) from exc
+
+            await asyncio.sleep(base_delay * attempt)
+
+        raise PaymentGatewayError("Не удалось выполнить запрос к платежной системе")
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -87,7 +140,7 @@ class YooKassaGateway(BasePaymentGateway):
         }
 
         headers = {"Idempotence-Key": str(uuid.uuid4())}
-        response = await self._client.post("/v3/payments", json=payload, headers=headers)
+        response = await self._request("POST", "/v3/payments", json=payload, headers=headers)
 
         if response.status_code >= 400:
             raise PaymentGatewayError(self._extract_error(response))
@@ -101,7 +154,7 @@ class YooKassaGateway(BasePaymentGateway):
         )
 
     async def check_payment(self, *, gateway_payment_id: str) -> PaymentCheckResult:
-        response = await self._client.get(f"/v3/payments/{gateway_payment_id}")
+        response = await self._request("GET", f"/v3/payments/{gateway_payment_id}")
         if response.status_code >= 400:
             raise PaymentGatewayError(self._extract_error(response))
 
