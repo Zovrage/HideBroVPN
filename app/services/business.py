@@ -775,12 +775,13 @@ class BusinessService:
                         try:
                             await self._remnawave.delete_user(user_uuid=subscription.remna_uuid)
                         except RemnawaveAPIError as exc:
-                            logger.warning(
-                                "Failed to delete Remnawave user %s: %s",
-                                subscription.remna_uuid,
-                                exc,
-                            )
-                            continue
+                            if exc.status_code != 404:
+                                logger.warning(
+                                    "Failed to delete Remnawave user %s: %s",
+                                    subscription.remna_uuid,
+                                    exc,
+                                )
+                                continue
 
                         await session.delete(subscription)
                     continue
