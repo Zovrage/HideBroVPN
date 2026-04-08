@@ -219,9 +219,9 @@ class BusinessService:
                 select(UserProfile).where(UserProfile.id == user_id).with_for_update()
             )
             if not profile:
-                raise NotFoundError("РџСЂРѕС„РёР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
+                raise NotFoundError("Профиль не найден")
             if profile.free_trial_used_at is not None:
-                raise TrialAlreadyUsedError("РџСЂРѕР±РЅС‹Р№ С‚Р°СЂРёС„ СѓР¶Рµ Р±С‹Р» Р°РєС‚РёРІРёСЂРѕРІР°РЅ")
+                raise TrialAlreadyUsedError("Пробный тариф уже был активирован")
 
             remna_user = await self._remnawave.create_user(
                 expire_at=expire_at,
@@ -258,16 +258,16 @@ class BusinessService:
     ) -> PaymentCreationResult:
         plan = get_plan(plan_code)
         if plan.is_trial:
-            raise ValueError("РџСЂРѕР±РЅС‹Р№ С‚Р°СЂРёС„ РЅРµ С‚СЂРµР±СѓРµС‚ РѕРїР»Р°С‚С‹")
+            raise ValueError("Пробный тариф не требует оплаты")
 
         async with self._session_factory() as session:
             profile = await session.scalar(select(UserProfile).where(UserProfile.id == user_id))
             if not profile:
-                raise NotFoundError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
+                raise NotFoundError("Пользователь не найден")
 
             if action == PaymentAction.EXTEND:
                 if not subscription_id:
-                    raise NotFoundError("РќРµ РїРµСЂРµРґР°РЅР° РїРѕРґРїРёСЃРєР° РґР»СЏ РїСЂРѕРґР»РµРЅРёСЏ")
+                    raise NotFoundError("Не передана подписка для продления")
                 target = await session.scalar(
                     select(UserSubscription).where(
                         UserSubscription.id == subscription_id,
@@ -275,7 +275,7 @@ class BusinessService:
                     )
                 )
                 if not target:
-                    raise NotFoundError("РџРѕРґРїРёСЃРєР° РґР»СЏ РїСЂРѕРґР»РµРЅРёСЏ РЅРµ РЅР°Р№РґРµРЅР°")
+                    raise NotFoundError("Подписка для продления не найдена")
                 if device_limit is None:
                     device_limit = target.device_limit
 
@@ -339,70 +339,112 @@ class BusinessService:
             filters.append(PaymentOrder.subscription_id == subscription_id)
 
         async with self._session_factory() as session:
-            order = await session.scalar(
-                select(PaymentOrder)
-                .where(*filters)
-                .order_by(desc(PaymentOrder.id))
-                .limit(1)
-                .with_for_update()
+            orders = list(
+                await session.scalars(
+                    select(PaymentOrder)
+                    .where(*filters)
+                    .order_by(desc(PaymentOrder.id))
+                    .with_for_update()
+                )
             )
 
-            if not order:
+            if not orders:
                 return PaymentProcessingResult(state="not_found", order=None)
 
-            if order.status == PaymentStatus.SUCCEEDED and order.is_processed:
-                subscription = await self._get_subscription_for_order(session, order)
+            pending_order: PaymentOrder | None = None
+            canceled_order: PaymentOrder | None = None
+            processed_order: PaymentOrder | None = None
+
+            for order in orders:
+                if order.status == PaymentStatus.SUCCEEDED and order.is_processed:
+                    if processed_order is None:
+                        processed_order = order
+                    continue
+
+                if order.status == PaymentStatus.SUCCEEDED and not order.is_processed:
+                    subscription = await self._fulfill_paid_order(session=session, order=order, now=now)
+                    order.is_processed = True
+                    referral_event = await self._process_referral_after_first_paid(
+                        session=session,
+                        invited_user_id=user_id,
+                        now=now,
+                    )
+                    await session.commit()
+                    return PaymentProcessingResult(
+                        state="succeeded",
+                        order=order,
+                        subscription=subscription,
+                        referral_event=referral_event,
+                    )
+
+                if order.status == PaymentStatus.CANCELED:
+                    if canceled_order is None:
+                        canceled_order = order
+                    continue
+
+                if not order.gateway_payment_id:
+                    if pending_order is None:
+                        pending_order = order
+                    continue
+
+                gateway_status = await self._payments.check_payment(
+                    gateway_payment_id=order.gateway_payment_id
+                )
+                mapped = PaymentStatus(map_gateway_status(gateway_status.status))
+                order.status = mapped
+
+                if mapped == PaymentStatus.SUCCEEDED and gateway_status.paid_at:
+                    order.paid_at = gateway_status.paid_at
+
+                if mapped == PaymentStatus.SUCCEEDED:
+                    if order.is_processed:
+                        if processed_order is None:
+                            processed_order = order
+                        continue
+
+                    subscription = await self._fulfill_paid_order(session=session, order=order, now=now)
+                    order.is_processed = True
+                    referral_event = await self._process_referral_after_first_paid(
+                        session=session,
+                        invited_user_id=user_id,
+                        now=now,
+                    )
+                    await session.commit()
+                    return PaymentProcessingResult(
+                        state="succeeded",
+                        order=order,
+                        subscription=subscription,
+                        referral_event=referral_event,
+                    )
+
+                if mapped == PaymentStatus.CANCELED:
+                    if canceled_order is None:
+                        canceled_order = order
+                    continue
+
+                if pending_order is None:
+                    pending_order = order
+
+            if pending_order is not None:
+                await session.commit()
+                return PaymentProcessingResult(state="pending", order=pending_order)
+
+            if canceled_order is not None:
+                await session.commit()
+                return PaymentProcessingResult(state="canceled", order=canceled_order)
+
+            if processed_order is not None:
+                subscription = await self._get_subscription_for_order(session, processed_order)
+                await session.commit()
                 return PaymentProcessingResult(
                     state="already_processed",
-                    order=order,
+                    order=processed_order,
                     subscription=subscription,
                 )
 
-            if not order.gateway_payment_id:
-                return PaymentProcessingResult(state="pending", order=order)
-
-            gateway_status = await self._payments.check_payment(
-                gateway_payment_id=order.gateway_payment_id
-            )
-            mapped = PaymentStatus(map_gateway_status(gateway_status.status))
-            order.status = mapped
-
-            if mapped == PaymentStatus.SUCCEEDED and gateway_status.paid_at:
-                order.paid_at = gateway_status.paid_at
-
-            if mapped == PaymentStatus.CANCELED:
-                await session.commit()
-                return PaymentProcessingResult(state="canceled", order=order)
-
-            if mapped != PaymentStatus.SUCCEEDED:
-                await session.commit()
-                return PaymentProcessingResult(state="pending", order=order)
-
-            if order.is_processed:
-                subscription = await self._get_subscription_for_order(session, order)
-                await session.commit()
-                return PaymentProcessingResult(
-                    state="already_processed",
-                    order=order,
-                    subscription=subscription,
-                )
-
-            subscription = await self._fulfill_paid_order(session=session, order=order, now=now)
-            order.is_processed = True
-
-            referral_event = await self._process_referral_after_first_paid(
-                session=session,
-                invited_user_id=user_id,
-                now=now,
-            )
-
+            newest_order = orders[0]
             await session.commit()
-            return PaymentProcessingResult(
-                state="succeeded",
-                order=order,
-                subscription=subscription,
-                referral_event=referral_event,
-            )
+            return PaymentProcessingResult(state="pending", order=newest_order)
 
     async def _fulfill_paid_order(
         self,
@@ -418,7 +460,7 @@ class BusinessService:
                 select(UserProfile).where(UserProfile.id == order.user_id).with_for_update()
             )
             if not profile:
-                raise NotFoundError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
+                raise NotFoundError("Пользователь не найден")
 
             raw_limit = order.extra_payload.get("device_limit") if order.extra_payload else None
             try:
@@ -451,7 +493,7 @@ class BusinessService:
 
         if order.action_type == PaymentAction.EXTEND:
             if not order.subscription_id:
-                raise NotFoundError("Р”Р»СЏ РїСЂРѕРґР»РµРЅРёСЏ РЅРµ РЅР°Р№РґРµРЅР° РїРѕРґРїРёСЃРєР°")
+                raise NotFoundError("Для продления не найдена подписка")
 
             subscription = await session.scalar(
                 select(UserSubscription)
@@ -462,7 +504,7 @@ class BusinessService:
                 .with_for_update()
             )
             if not subscription:
-                raise NotFoundError("РџРѕРґРїРёСЃРєР° РґР»СЏ РїСЂРѕРґР»РµРЅРёСЏ РЅРµ РЅР°Р№РґРµРЅР°")
+                raise NotFoundError("Подписка для продления не найдена")
 
             base_date = subscription.expire_at if subscription.expire_at > now else now
             new_expire = base_date + timedelta(days=plan.days)
@@ -473,10 +515,13 @@ class BusinessService:
             )
             subscription.expire_at = remna_user.expire_at
             subscription.subscription_url = remna_user.subscription_url
+            subscription.notified_3d_at = None
+            subscription.notified_1d_at = None
+            subscription.deleted_at = None
             subscription.is_active = True
             return subscription
 
-        raise ValueError(f"РќРµРёР·РІРµСЃС‚РЅРѕРµ РґРµР№СЃС‚РІРёРµ Р·Р°РєР°Р·Р°: {order.action_type}")
+        raise ValueError(f"Неизвестное действие заказа: {order.action_type}")
 
     async def _get_subscription_for_order(
         self,
@@ -588,7 +633,7 @@ class BusinessService:
                 select(UserProfile).where(UserProfile.telegram_id == referrer_telegram_id)
             )
             if not referrer:
-                raise AccessDeniedError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
+                raise AccessDeniedError("Пользователь не найден")
 
             referral = await session.scalar(
                 select(Referral)
@@ -601,7 +646,7 @@ class BusinessService:
                 .with_for_update()
             )
             if not referral:
-                raise NotFoundError("Р‘РѕРЅСѓСЃ СѓР¶Рµ РёСЃРїРѕР»СЊР·РѕРІР°РЅ РёР»Рё РЅРµРґРѕСЃС‚СѓРїРµРЅ")
+                raise NotFoundError("Бонус уже использован или недоступен")
 
             subscription = await session.scalar(
                 select(UserSubscription)
@@ -612,7 +657,7 @@ class BusinessService:
                 .with_for_update()
             )
             if not subscription:
-                raise NotFoundError("РџРѕРґРїРёСЃРєР° РґР»СЏ Р±РѕРЅСѓСЃР° РЅРµ РЅР°Р№РґРµРЅР°")
+                raise NotFoundError("Подписка для бонуса не найдена")
 
             updated = await self._extend_subscription_days(
                 session=session,
@@ -644,6 +689,9 @@ class BusinessService:
         )
         subscription.expire_at = remna_user.expire_at
         subscription.subscription_url = remna_user.subscription_url
+        subscription.notified_3d_at = None
+        subscription.notified_1d_at = None
+        subscription.deleted_at = None
         subscription.is_active = True
         return subscription
 
@@ -709,6 +757,20 @@ class BusinessService:
                 remaining_seconds = remaining.total_seconds()
 
                 if remaining_seconds <= 0:
+                    if subscription.is_active:
+                        local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
+                        await bot.send_message(
+                            chat_id=int(telegram_id),
+                            text=(
+                                f"Срок подписки <b>{subscription.remna_username}</b> истек "
+                                f"{local_expire.strftime('%d.%m.%Y %H:%M')}.\n\n"
+                                "Ключ будет удалён из системы. "
+                                "Вы можете продлить подписку прямо сейчас."
+                            ),
+                            reply_markup=expired_subscription_keyboard(),
+                        )
+                        subscription.is_active = False
+
                     if now >= subscription.expire_at + timedelta(days=2):
                         try:
                             await self._remnawave.delete_user(user_uuid=subscription.remna_uuid)
@@ -720,19 +782,7 @@ class BusinessService:
                             )
                             continue
 
-                        subscription.deleted_at = now
-                        subscription.is_active = False
-
-                        local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
-                        await bot.send_message(
-                            chat_id=int(telegram_id),
-                            text=(
-                                f"Срок подписки <b>{subscription.remna_username}</b> истек "
-                                f"{local_expire.strftime('%d.%m.%Y %H:%M')}.\n\n"
-                                "Ключ удалён из системы."
-                            ),
-                            reply_markup=expired_subscription_keyboard(),
-                        )
+                        await session.delete(subscription)
                     continue
 
                 if (
@@ -819,7 +869,7 @@ class BusinessService:
         now = self._now()
         target = await self.find_profile_by_identifier(target_identifier)
         if not target:
-            raise NotFoundError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РїРѕ ID/username РЅРµ РЅР°Р№РґРµРЅ")
+            raise NotFoundError("Пользователь по ID/username не найден")
 
         expire_at = now + timedelta(days=days)
 
@@ -832,7 +882,7 @@ class BusinessService:
                 select(UserProfile).where(UserProfile.id == target.id).with_for_update()
             )
             if not locked_target:
-                raise NotFoundError("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
+                raise NotFoundError("Пользователь не найден")
 
             remna_user = await self._remnawave.create_user(
                 expire_at=expire_at,
@@ -930,4 +980,3 @@ class BusinessService:
                     )
                 )
             return events
-
