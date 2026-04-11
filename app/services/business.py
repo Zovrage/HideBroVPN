@@ -753,68 +753,98 @@ class BusinessService:
             items = rows.all()
 
             for subscription, telegram_id in items:
-                remaining = subscription.expire_at - now
-                remaining_seconds = remaining.total_seconds()
+                try:
+                    remaining = subscription.expire_at - now
+                    remaining_seconds = remaining.total_seconds()
 
-                if remaining_seconds <= 0:
-                    if subscription.is_active:
-                        local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
-                        await bot.send_message(
-                            chat_id=int(telegram_id),
-                            text=(
-                                f"Срок подписки <b>{subscription.remna_username}</b> истек "
-                                f"{local_expire.strftime('%d.%m.%Y %H:%M')}.\n\n"
-                                "Ключ будет удалён из системы. "
-                                "Вы можете продлить подписку прямо сейчас."
-                            ),
-                            reply_markup=expired_subscription_keyboard(),
-                        )
-                        subscription.is_active = False
-
-                    if now >= subscription.expire_at + timedelta(days=2):
-                        try:
-                            await self._remnawave.delete_user(user_uuid=subscription.remna_uuid)
-                        except RemnawaveAPIError as exc:
-                            if exc.status_code != 404:
+                    if remaining_seconds <= 0:
+                        if subscription.is_active:
+                            local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
+                            subscription.is_active = False
+                            try:
+                                await bot.send_message(
+                                    chat_id=int(telegram_id),
+                                    text=(
+                                        f"Срок подписки <b>{subscription.remna_username}</b> истек "
+                                        f"{local_expire.strftime('%d.%m.%Y %H:%M')}.\n\n"
+                                        "Ключ будет удалён из системы. "
+                                        "Вы можете продлить подписку прямо сейчас."
+                                    ),
+                                    reply_markup=expired_subscription_keyboard(),
+                                )
+                            except Exception as exc:
                                 logger.warning(
-                                    "Failed to delete Remnawave user %s: %s",
-                                    subscription.remna_uuid,
+                                    "Failed to send expired notification for subscription %s to telegram_id=%s: %s",
+                                    subscription.id,
+                                    telegram_id,
                                     exc,
                                 )
-                                continue
 
-                        await session.delete(subscription)
-                    continue
+                        if now >= subscription.expire_at + timedelta(days=2):
+                            try:
+                                await self._remnawave.delete_user(user_uuid=subscription.remna_uuid)
+                            except RemnawaveAPIError as exc:
+                                if exc.status_code != 404:
+                                    logger.warning(
+                                        "Failed to delete Remnawave user %s: %s",
+                                        subscription.remna_uuid,
+                                        exc,
+                                    )
+                                    continue
 
-                if (
-                    subscription.notified_3d_at is None
-                    and remaining_seconds <= 3 * 86400
-                    and remaining_seconds > 2 * 86400
-                ):
-                    subscription.notified_3d_at = now
-                    local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
-                    await bot.send_message(
-                        chat_id=int(telegram_id),
-                        text=(
-                            f"Срок подписки <b>{subscription.remna_username}</b> истекает через 3 дня.\n\n"
-                            f"Дата окончания: <b>{local_expire.strftime('%d.%m.%Y %H:%M')}</b>"
-                        ),
-                    )
-                    continue
+                            await session.delete(subscription)
+                        continue
 
-                if (
-                    subscription.notified_1d_at is None
-                    and remaining_seconds <= 86400
-                    and remaining_seconds > 0
-                ):
-                    subscription.notified_1d_at = now
-                    local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
-                    await bot.send_message(
-                        chat_id=int(telegram_id),
-                        text=(
-                            f"Срок подписки <b>{subscription.remna_username}</b> истекает через 1 день.\n\n"
-                            f"Дата окончания: <b>{local_expire.strftime('%d.%m.%Y %H:%M')}</b>"
-                        ),
+                    if (
+                        subscription.notified_3d_at is None
+                        and remaining_seconds <= 3 * 86400
+                        and remaining_seconds > 2 * 86400
+                    ):
+                        subscription.notified_3d_at = now
+                        local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
+                        try:
+                            await bot.send_message(
+                                chat_id=int(telegram_id),
+                                text=(
+                                    f"Срок подписки <b>{subscription.remna_username}</b> истекает через 3 дня.\n\n"
+                                    f"Дата окончания: <b>{local_expire.strftime('%d.%m.%Y %H:%M')}</b>"
+                                ),
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "Failed to send 3-day notification for subscription %s to telegram_id=%s: %s",
+                                subscription.id,
+                                telegram_id,
+                                exc,
+                            )
+                        continue
+
+                    if (
+                        subscription.notified_1d_at is None
+                        and remaining_seconds <= 86400
+                        and remaining_seconds > 0
+                    ):
+                        subscription.notified_1d_at = now
+                        local_expire = subscription.expire_at.astimezone(ZoneInfo(tz))
+                        try:
+                            await bot.send_message(
+                                chat_id=int(telegram_id),
+                                text=(
+                                    f"Срок подписки <b>{subscription.remna_username}</b> истекает через 1 день.\n\n"
+                                    f"Дата окончания: <b>{local_expire.strftime('%d.%m.%Y %H:%M')}</b>"
+                                ),
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "Failed to send 1-day notification for subscription %s to telegram_id=%s: %s",
+                                subscription.id,
+                                telegram_id,
+                                exc,
+                            )
+                except Exception:
+                    logger.exception(
+                        "Subscription notification processing failed for subscription_id=%s",
+                        subscription.id,
                     )
 
             await session.commit()
