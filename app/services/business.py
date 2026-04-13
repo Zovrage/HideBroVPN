@@ -704,7 +704,7 @@ class BusinessService:
         subscription = await self.get_user_subscription(
             user_id=user_id,
             subscription_id=subscription_id,
-            refresh_remote=True,
+            refresh_remote=False,
         )
         total, devices = await self._remnawave.get_user_devices(user_uuid=subscription.remna_uuid)
         return subscription, total, devices
@@ -722,7 +722,7 @@ class BusinessService:
         subscription = await self.get_user_subscription(
             user_id=user_id,
             subscription_id=subscription_id,
-            refresh_remote=True,
+            refresh_remote=False,
         )
 
         _, devices = await self._remnawave.get_user_devices(user_uuid=subscription.remna_uuid)
@@ -770,7 +770,7 @@ class BusinessService:
                                         "Ключ будет удалён из системы. "
                                         "Вы можете продлить подписку прямо сейчас."
                                     ),
-                                    reply_markup=expired_subscription_keyboard(),
+                                    reply_markup=expired_subscription_keyboard(subscription.id),
                                 )
                             except Exception as exc:
                                 logger.warning(

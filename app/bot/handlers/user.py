@@ -181,7 +181,7 @@ async def main_menu_callback(
         return
 
     if callback_data.action == "subscriptions":
-        subscriptions = await business.list_user_subscriptions(profile.id, refresh_remote=True)
+        subscriptions = await business.list_user_subscriptions(profile.id, refresh_remote=False)
         await replace_callback_message(
             callback,
             text=subscriptions_list_text(subscriptions, settings.timezone),
@@ -320,10 +320,10 @@ async def plan_action_callback(
                     subscription = await business.get_user_subscription(
                         user_id=profile.id,
                         subscription_id=callback_data.sub,
-                        refresh_remote=True,
+                        refresh_remote=False,
                     )
                 except NotFoundError:
-                    subscriptions = await business.list_user_subscriptions(profile.id, refresh_remote=True)
+                    subscriptions = await business.list_user_subscriptions(profile.id, refresh_remote=False)
                     await replace_callback_message(
                         callback,
                         text=subscriptions_list_text(subscriptions, settings.timezone),
@@ -337,7 +337,7 @@ async def plan_action_callback(
                     )
                 return
 
-            subscriptions = await business.list_user_subscriptions(profile.id, refresh_remote=True)
+            subscriptions = await business.list_user_subscriptions(profile.id, refresh_remote=False)
             await replace_callback_message(
                 callback,
                 text=subscriptions_list_text(subscriptions, settings.timezone),
@@ -506,12 +506,12 @@ async def subscription_callback(
             subscription = await business.get_user_subscription(
                 user_id=profile.id,
                 subscription_id=callback_data.sub,
-                refresh_remote=True,
+                refresh_remote=False,
             )
-        except NotFoundError as exc:
+        except NotFoundError:
             await replace_callback_message(
                 callback,
-                text=str(exc),
+                text="Такой подписки уже не существует или она была удалена.",
                 reply_markup=main_menu_keyboard(support_username=settings.support_username),
             )
             return
@@ -528,7 +528,7 @@ async def subscription_callback(
             subscription = await business.get_user_subscription(
                 user_id=profile.id,
                 subscription_id=callback_data.sub,
-                refresh_remote=True,
+                refresh_remote=False,
             )
         except NotFoundError as exc:
             await replace_callback_message(

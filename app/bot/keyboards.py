@@ -218,9 +218,14 @@ def invite_link_keyboard() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def expired_subscription_keyboard() -> InlineKeyboardMarkup:
+def expired_subscription_keyboard(subscription_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="Продлить", callback_data=MainMenuCb(action="subscriptions").pack()))
+    kb.row(
+        InlineKeyboardButton(
+            text="Продлить",
+            callback_data=SubscriptionCb(action="extend", sub=subscription_id).pack(),
+        )
+    )
     kb.row(InlineKeyboardButton(text="Главное меню", callback_data=MainMenuCb(action="main").pack()))
     return kb.as_markup()
 
