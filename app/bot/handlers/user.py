@@ -1,9 +1,8 @@
 ﻿from __future__ import annotations
 
 import re
-from zoneinfo import ZoneInfo
 
-from aiogram import Bot, F, Router
+from aiogram import F, Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
@@ -13,7 +12,6 @@ from app.bot.callbacks import (
     MainMenuCb,
     PlanActionCb,
     ReferralCb,
-    RewardChoiceCb,
     SubscriptionCb,
     TariffCb,
 )
@@ -24,7 +22,6 @@ from app.bot.keyboards import (
     invite_menu_keyboard,
     main_menu_keyboard,
     plan_actions_keyboard,
-    reward_choice_keyboard,
     subscription_actions_keyboard,
     subscriptions_keyboard,
     tariffs_keyboard,
@@ -48,7 +45,7 @@ from app.bot.ui import replace_callback_message
 from app.core.config import Settings
 from app.db.models import PaymentAction, UserProfile
 from app.domain.plans import get_plan
-from app.services.business import BusinessService, ReferralRewardEvent
+from app.services.business import BusinessService
 from app.services.errors import NotFoundError, PaymentGatewayError, RemnawaveAPIError, TrialAlreadyUsedError
 
 router = Router(name="user")
@@ -86,59 +83,6 @@ async def _render_main_message(
     return text, keyboard
 
 
-async def _send_referral_event_notification(
-    *,
-    bot: Bot,
-    business: BusinessService,
-    event: ReferralRewardEvent,
-) -> None:
-    if event.kind == "auto_applied":
-        await bot.send_message(
-            chat_id=event.referrer_telegram_id,
-            text=(
-                "Ваш приглашённый пользователь оплатил подписку.\n\n"
-                f"Бонус +{event.bonus_days} дней уже начислен автоматически."
-            ),
-        )
-        return
-
-    if event.kind == "choice_required":
-        subscriptions = await business.get_subscriptions_by_ids(event.candidate_subscription_ids)
-        if len(subscriptions) < 2:
-            return
-        await bot.send_message(
-            chat_id=event.referrer_telegram_id,
-            text=(
-                "Ваш приглашённый пользователь оплатил подписку.\n\n"
-                f"Выберите ключ для бонуса +{event.bonus_days} дней."
-            ),
-            reply_markup=reward_choice_keyboard(event.referral_id, subscriptions),
-        )
-        return
-
-    if event.kind == "no_subscription":
-        await bot.send_message(
-            chat_id=event.referrer_telegram_id,
-            text=(
-                "Ваш приглашённый пользователь оплатил подписку, но у вас нет активных ключей для продления.\n\n"
-                "Бонус не был применён."
-            ),
-        )
-
-
-async def _send_pending_referral_choices(
-    *,
-    bot: Bot,
-    business: BusinessService,
-    referrer_telegram_id: int,
-) -> None:
-    events = await business.get_pending_referral_choices_for_referrer(
-        referrer_telegram_id=referrer_telegram_id
-    )
-    for event in events:
-        await _send_referral_event_notification(bot=bot, business=business, event=event)
-
-
 @router.message(CommandStart())
 async def start_handler(
     message: Message,
@@ -151,11 +95,6 @@ async def start_handler(
 
     text, keyboard = await _render_main_message(business=business, settings=settings, profile=profile)
     await message.answer(text=text, reply_markup=keyboard, disable_web_page_preview=True)
-    await _send_pending_referral_choices(
-        bot=message.bot,
-        business=business,
-        referrer_telegram_id=message.from_user.id,
-    )
 
 
 @router.callback_query(MainMenuCb.filter())
@@ -477,13 +416,6 @@ async def plan_action_callback(
             )
             return
 
-        if result.referral_event is not None:
-            await _send_referral_event_notification(
-                bot=callback.bot,
-                business=business,
-                event=result.referral_event,
-            )
-
         text, keyboard = await _render_main_message(business=business, settings=settings, profile=profile)
         await replace_callback_message(
             callback,
@@ -653,33 +585,3 @@ async def referral_link_callback(
     )
 
 
-@router.callback_query(RewardChoiceCb.filter())
-async def referral_reward_choice_callback(
-    callback: CallbackQuery,
-    callback_data: RewardChoiceCb,
-    business: BusinessService,
-    settings: Settings,
-) -> None:
-    try:
-        subscription = await business.apply_referral_reward_choice(
-            referrer_telegram_id=callback.from_user.id,
-            referral_id=callback_data.referral_id,
-            subscription_id=callback_data.sub,
-        )
-    except (NotFoundError, RemnawaveAPIError) as exc:
-        await replace_callback_message(
-            callback,
-            text=str(exc),
-            reply_markup=main_menu_keyboard(support_username=settings.support_username),
-        )
-        return
-
-    await replace_callback_message(
-        callback,
-        text=(
-            "Бонус успешно применён.\n\n"
-            f"Ключ: <pre>{subscription.remna_username}</pre>\n\n"
-            f"Новый срок: <b>{subscription.expire_at.astimezone(ZoneInfo(settings.timezone)).strftime('%d.%m.%Y %H:%M')}</b>"
-        ),
-        reply_markup=main_menu_keyboard(support_username=settings.support_username),
-    )

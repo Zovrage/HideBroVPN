@@ -57,7 +57,6 @@ class PaymentProcessingResult:
     state: Literal["not_found", "pending", "canceled", "succeeded", "already_processed"]
     order: PaymentOrder | None
     subscription: UserSubscription | None = None
-    referral_event: ReferralRewardEvent | None = None
 
 
 class BusinessService:
@@ -104,13 +103,38 @@ class BusinessService:
                 )
                 if referrer:
                     profile.referred_by_id = referrer.id
-                    session.add(
-                        Referral(
-                            referrer_id=referrer.id,
-                            invited_id=profile.id,
-                            bonus_days=self._settings.referral_bonus_days,
-                        )
+                    referral = Referral(
+                        referrer_id=referrer.id,
+                        invited_id=profile.id,
+                        bonus_days=self._settings.referral_bonus_days,
                     )
+                    session.add(referral)
+                    await session.flush()
+
+                    now = self._now()
+                    ref_subscription = await session.scalar(
+                        select(UserSubscription)
+                        .where(UserSubscription.user_id == referrer.id)
+                        .order_by(desc(UserSubscription.expire_at), desc(UserSubscription.id))
+                    )
+                    if ref_subscription is not None:
+                        try:
+                            updated = await self._extend_subscription_days(
+                                session=session,
+                                subscription=ref_subscription,
+                                days=referral.bonus_days,
+                                now=now,
+                            )
+                            referral.reward_subscription_id = updated.id
+                            referral.rewarded_at = now
+                        except RemnawaveAPIError:
+                            logger.exception(
+                                "Failed to apply referral bonus for referrer_id=%s invited_id=%s",
+                                referrer.id,
+                                profile.id,
+                            )
+                    else:
+                        referral.rewarded_at = now
 
             await session.commit()
             await session.refresh(profile)
@@ -364,17 +388,11 @@ class BusinessService:
                 if order.status == PaymentStatus.SUCCEEDED and not order.is_processed:
                     subscription = await self._fulfill_paid_order(session=session, order=order, now=now)
                     order.is_processed = True
-                    referral_event = await self._process_referral_after_first_paid(
-                        session=session,
-                        invited_user_id=user_id,
-                        now=now,
-                    )
                     await session.commit()
                     return PaymentProcessingResult(
                         state="succeeded",
                         order=order,
                         subscription=subscription,
-                        referral_event=referral_event,
                     )
 
                 if order.status == PaymentStatus.CANCELED:
@@ -404,17 +422,11 @@ class BusinessService:
 
                     subscription = await self._fulfill_paid_order(session=session, order=order, now=now)
                     order.is_processed = True
-                    referral_event = await self._process_referral_after_first_paid(
-                        session=session,
-                        invited_user_id=user_id,
-                        now=now,
-                    )
                     await session.commit()
                     return PaymentProcessingResult(
                         state="succeeded",
                         order=order,
                         subscription=subscription,
-                        referral_event=referral_event,
                     )
 
                 if mapped == PaymentStatus.CANCELED:
