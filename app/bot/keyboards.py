@@ -256,14 +256,24 @@ def admin_issue_device_keyboard() -> InlineKeyboardMarkup:
 def admin_issue_days_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     used_days: set[int] = set()
+    days_options: list[int] = []
     for plan in PLANS.values():
         if plan.days in used_days:
             continue
         used_days.add(plan.days)
+        days_options.append(plan.days)
+
+    if 5 not in used_days:
+        if 3 in days_options:
+            days_options.insert(days_options.index(3) + 1, 5)
+        else:
+            days_options.append(5)
+
+    for days in days_options:
         kb.row(
             InlineKeyboardButton(
-                text=f"{plan.days} дней",
-                callback_data=AdminIssueCb(action="days", value=str(plan.days)).pack(),
+                text=f"{days} дней",
+                callback_data=AdminIssueCb(action="days", value=str(days)).pack(),
             )
         )
     kb.row(InlineKeyboardButton(text="Назад", callback_data=AdminMenuCb(action="back").pack()))

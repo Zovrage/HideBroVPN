@@ -1,8 +1,10 @@
 ﻿from __future__ import annotations
 
+import logging
 import re
+from zoneinfo import ZoneInfo
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
@@ -45,10 +47,11 @@ from app.bot.ui import replace_callback_message
 from app.core.config import Settings
 from app.db.models import PaymentAction, UserProfile
 from app.domain.plans import get_plan
-from app.services.business import BusinessService
+from app.services.business import BusinessService, ReferralRewardEvent
 from app.services.errors import NotFoundError, PaymentGatewayError, RemnawaveAPIError, TrialAlreadyUsedError
 
 router = Router(name="user")
+logger = logging.getLogger(__name__)
 
 
 REF_PATTERN = re.compile(r"^ref_(\d+)$")
@@ -83,6 +86,33 @@ async def _render_main_message(
     return text, keyboard
 
 
+async def _send_referral_bonus_notification(
+    *,
+    bot: Bot,
+    business: BusinessService,
+    event: ReferralRewardEvent,
+    timezone_name: str,
+) -> None:
+    if event.kind != "auto_applied" or event.applied_subscription_id is None:
+        return
+
+    subscriptions = await business.get_subscriptions_by_ids([event.applied_subscription_id])
+    if not subscriptions:
+        return
+
+    subscription = subscriptions[0]
+    local_expire = subscription.expire_at.astimezone(ZoneInfo(timezone_name)).strftime("%d.%m.%Y %H:%M")
+    await bot.send_message(
+        chat_id=event.referrer_telegram_id,
+        text=(
+            "По вашей реферальной ссылке пришёл новый пользователь.\n\n"
+            f"Бонус +{event.bonus_days} дней начислен.\n\n"
+            f"Ключ: <code>{subscription.remna_username}</code>\n\n"
+            f"Новый срок: <b>{local_expire}</b>"
+        ),
+    )
+
+
 @router.message(CommandStart())
 @router.message(CommandStart(deep_link=True))
 async def start_handler(
@@ -92,10 +122,23 @@ async def start_handler(
     settings: Settings,
 ) -> None:
     referral_telegram_id = _parse_referral_arg(command)
-    profile = await business.get_or_create_profile(message.from_user, referral_telegram_id=referral_telegram_id)
+    profile, referral_event = await business.get_or_create_profile_with_referral_event(
+        message.from_user,
+        referral_telegram_id=referral_telegram_id,
+    )
 
     text, keyboard = await _render_main_message(business=business, settings=settings, profile=profile)
     await message.answer(text=text, reply_markup=keyboard, disable_web_page_preview=True)
+    if referral_event is not None:
+        try:
+            await _send_referral_bonus_notification(
+                bot=message.bot,
+                business=business,
+                event=referral_event,
+                timezone_name=settings.timezone,
+            )
+        except Exception:
+            logger.exception("Failed to send referral bonus notification")
 
 
 @router.callback_query(MainMenuCb.filter())

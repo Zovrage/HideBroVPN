@@ -78,6 +78,18 @@ class BusinessService:
         return datetime.now(tz=timezone.utc)
 
     async def get_or_create_profile(self, tg_user: User, referral_telegram_id: int | None = None) -> UserProfile:
+        profile, _ = await self.get_or_create_profile_with_referral_event(
+            tg_user,
+            referral_telegram_id=referral_telegram_id,
+        )
+        return profile
+
+    async def get_or_create_profile_with_referral_event(
+        self,
+        tg_user: User,
+        referral_telegram_id: int | None = None,
+    ) -> tuple[UserProfile, ReferralRewardEvent | None]:
+        referral_event: ReferralRewardEvent | None = None
         async with self._session_factory() as session:
             profile = await session.scalar(
                 select(UserProfile).where(UserProfile.telegram_id == tg_user.id)
@@ -117,13 +129,48 @@ class BusinessService:
                         .order_by(desc(UserSubscription.expire_at), desc(UserSubscription.id))
                     )
 
+                    now = self._now()
                     if ref_subscription is None:
-                        logger.info(
-                            "Referral recorded but bonus not applied: referrer_id=%s has no subscriptions",
-                            referrer.id,
-                        )
+                        expire_at = now + timedelta(days=referral.bonus_days)
+                        try:
+                            remna_user = await self._remnawave.create_user(
+                                expire_at=expire_at,
+                                telegram_id=referrer.telegram_id,
+                                device_limit=self._settings.device_limit,
+                            )
+                            created = UserSubscription(
+                                user_id=referrer.id,
+                                remna_uuid=remna_user.uuid,
+                                remna_short_uuid=remna_user.short_uuid,
+                                remna_username=remna_user.username,
+                                subscription_url=remna_user.subscription_url,
+                                expire_at=remna_user.expire_at,
+                                device_limit=self._settings.device_limit,
+                                is_trial=False,
+                                is_active=True,
+                            )
+                            session.add(created)
+                            await session.flush()
+                        except RemnawaveAPIError:
+                            logger.exception(
+                                "Failed to create referral bonus subscription for referrer_id=%s invited_id=%s",
+                                referrer.id,
+                                profile.id,
+                            )
+                        else:
+                            referral.reward_locked_at = now
+                            referral.rewarded_at = now
+                            referral.reward_subscription_id = created.id
+                            referral_event = ReferralRewardEvent(
+                                kind="auto_applied",
+                                referral_id=referral.id,
+                                referrer_telegram_id=referrer.telegram_id,
+                                invited_telegram_id=profile.telegram_id,
+                                bonus_days=referral.bonus_days,
+                                candidate_subscription_ids=[created.id],
+                                applied_subscription_id=created.id,
+                            )
                     else:
-                        now = self._now()
                         try:
                             updated = await self._extend_subscription_days(
                                 session=session,
@@ -141,10 +188,19 @@ class BusinessService:
                             referral.reward_locked_at = now
                             referral.rewarded_at = now
                             referral.reward_subscription_id = updated.id
+                            referral_event = ReferralRewardEvent(
+                                kind="auto_applied",
+                                referral_id=referral.id,
+                                referrer_telegram_id=referrer.telegram_id,
+                                invited_telegram_id=profile.telegram_id,
+                                bonus_days=referral.bonus_days,
+                                candidate_subscription_ids=[updated.id],
+                                applied_subscription_id=updated.id,
+                            )
 
             await session.commit()
             await session.refresh(profile)
-            return profile
+            return profile, referral_event
 
     async def get_profile_by_telegram_id(self, telegram_id: int) -> UserProfile | None:
         async with self._session_factory() as session:
