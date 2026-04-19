@@ -14,6 +14,7 @@ from app.bot.callbacks import (
     MainMenuCb,
     PlanActionCb,
     ReferralCb,
+    RewardChoiceCb,
     SubscriptionCb,
     TariffCb,
 )
@@ -24,6 +25,7 @@ from app.bot.keyboards import (
     invite_menu_keyboard,
     main_menu_keyboard,
     plan_actions_keyboard,
+    reward_choice_keyboard,
     subscription_actions_keyboard,
     subscriptions_keyboard,
     tariffs_keyboard,
@@ -93,24 +95,37 @@ async def _send_referral_bonus_notification(
     event: ReferralRewardEvent,
     timezone_name: str,
 ) -> None:
-    if event.kind != "auto_applied" or event.applied_subscription_id is None:
+    if event.kind == "auto_applied" and event.applied_subscription_id is not None:
+        subscriptions = await business.get_subscriptions_by_ids([event.applied_subscription_id])
+        if not subscriptions:
+            return
+
+        subscription = subscriptions[0]
+        local_expire = subscription.expire_at.astimezone(ZoneInfo(timezone_name)).strftime("%d.%m.%Y %H:%M")
+        await bot.send_message(
+            chat_id=event.referrer_telegram_id,
+            text=(
+                "По вашей реферальной ссылке пришёл новый пользователь.\n\n"
+                f"Бонус +{event.bonus_days} дней начислен.\n\n"
+                f"Ключ: <code>{subscription.remna_username}</code>\n\n"
+                f"Новый срок: <b>{local_expire}</b>"
+            ),
+        )
         return
 
-    subscriptions = await business.get_subscriptions_by_ids([event.applied_subscription_id])
-    if not subscriptions:
-        return
+    if event.kind == "choice_required":
+        subscriptions = await business.get_subscriptions_by_ids(event.candidate_subscription_ids)
+        if len(subscriptions) < 2:
+            return
 
-    subscription = subscriptions[0]
-    local_expire = subscription.expire_at.astimezone(ZoneInfo(timezone_name)).strftime("%d.%m.%Y %H:%M")
-    await bot.send_message(
-        chat_id=event.referrer_telegram_id,
-        text=(
-            "По вашей реферальной ссылке пришёл новый пользователь.\n\n"
-            f"Бонус +{event.bonus_days} дней начислен.\n\n"
-            f"Ключ: <code>{subscription.remna_username}</code>\n\n"
-            f"Новый срок: <b>{local_expire}</b>"
-        ),
-    )
+        await bot.send_message(
+            chat_id=event.referrer_telegram_id,
+            text=(
+                "По вашей реферальной ссылке пришёл новый пользователь.\n\n"
+                f"Выберите ключ, к которому применить бонус +{event.bonus_days} дней."
+            ),
+            reply_markup=reward_choice_keyboard(event.referral_id, subscriptions),
+        )
 
 
 @router.message(CommandStart())
@@ -626,6 +641,38 @@ async def referral_link_callback(
         callback,
         text=invite_link_text(link),
         reply_markup=invite_link_keyboard(),
+    )
+
+
+@router.callback_query(RewardChoiceCb.filter())
+async def referral_reward_choice_callback(
+    callback: CallbackQuery,
+    callback_data: RewardChoiceCb,
+    business: BusinessService,
+    settings: Settings,
+) -> None:
+    try:
+        subscription = await business.apply_referral_reward_choice(
+            referrer_telegram_id=callback.from_user.id,
+            referral_id=callback_data.referral_id,
+            subscription_id=callback_data.sub,
+        )
+    except (NotFoundError, RemnawaveAPIError) as exc:
+        await replace_callback_message(
+            callback,
+            text=str(exc),
+            reply_markup=main_menu_keyboard(support_username=settings.support_username),
+        )
+        return
+
+    await replace_callback_message(
+        callback,
+        text=(
+            "Бонус успешно применён.\n\n"
+            f"Ключ: <pre>{subscription.remna_username}</pre>\n\n"
+            f"Новый срок: <b>{subscription.expire_at.astimezone(ZoneInfo(settings.timezone)).strftime('%d.%m.%Y %H:%M')}</b>"
+        ),
+        reply_markup=main_menu_keyboard(support_username=settings.support_username),
     )
 
 

@@ -123,14 +123,16 @@ class BusinessService:
                     session.add(referral)
                     await session.flush()
 
-                    ref_subscription = await session.scalar(
-                        select(UserSubscription)
-                        .where(UserSubscription.user_id == referrer.id)
-                        .order_by(desc(UserSubscription.expire_at), desc(UserSubscription.id))
+                    ref_subscriptions = list(
+                        await session.scalars(
+                            select(UserSubscription)
+                            .where(UserSubscription.user_id == referrer.id)
+                            .order_by(desc(UserSubscription.expire_at), desc(UserSubscription.id))
+                        )
                     )
 
                     now = self._now()
-                    if ref_subscription is None:
+                    if not ref_subscriptions:
                         expire_at = now + timedelta(days=referral.bonus_days)
                         try:
                             remna_user = await self._remnawave.create_user(
@@ -170,7 +172,8 @@ class BusinessService:
                                 candidate_subscription_ids=[created.id],
                                 applied_subscription_id=created.id,
                             )
-                    else:
+                    elif len(ref_subscriptions) == 1:
+                        ref_subscription = ref_subscriptions[0]
                         try:
                             updated = await self._extend_subscription_days(
                                 session=session,
@@ -197,6 +200,16 @@ class BusinessService:
                                 candidate_subscription_ids=[updated.id],
                                 applied_subscription_id=updated.id,
                             )
+                    else:
+                        referral.reward_locked_at = now
+                        referral_event = ReferralRewardEvent(
+                            kind="choice_required",
+                            referral_id=referral.id,
+                            referrer_telegram_id=referrer.telegram_id,
+                            invited_telegram_id=profile.telegram_id,
+                            bonus_days=referral.bonus_days,
+                            candidate_subscription_ids=[sub.id for sub in ref_subscriptions],
+                        )
 
             await session.commit()
             await session.refresh(profile)
