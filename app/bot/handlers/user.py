@@ -84,6 +84,7 @@ async def _render_main_message(
 
 
 @router.message(CommandStart())
+@router.message(CommandStart(deep_link=True))
 async def start_handler(
     message: Message,
     command: CommandObject | None,
