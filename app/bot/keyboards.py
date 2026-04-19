@@ -285,7 +285,7 @@ def reward_choice_keyboard(referral_id: int, subscriptions: list[UserSubscriptio
     for subscription in subscriptions:
         kb.row(
             InlineKeyboardButton(
-                text=f"Ключ #{subscription.id}",
+                text=subscription.remna_username,
                 callback_data=RewardChoiceCb(referral_id=referral_id, sub=subscription.id).pack(),
             )
         )
