@@ -111,13 +111,19 @@ class BusinessService:
                     session.add(referral)
                     await session.flush()
 
-                    now = self._now()
                     ref_subscription = await session.scalar(
                         select(UserSubscription)
                         .where(UserSubscription.user_id == referrer.id)
                         .order_by(desc(UserSubscription.expire_at), desc(UserSubscription.id))
                     )
-                    if ref_subscription is not None:
+
+                    if ref_subscription is None:
+                        logger.info(
+                            "Referral recorded but bonus not applied: referrer_id=%s has no subscriptions",
+                            referrer.id,
+                        )
+                    else:
+                        now = self._now()
                         try:
                             updated = await self._extend_subscription_days(
                                 session=session,
@@ -125,16 +131,16 @@ class BusinessService:
                                 days=referral.bonus_days,
                                 now=now,
                             )
-                            referral.reward_subscription_id = updated.id
-                            referral.rewarded_at = now
                         except RemnawaveAPIError:
                             logger.exception(
                                 "Failed to apply referral bonus for referrer_id=%s invited_id=%s",
                                 referrer.id,
                                 profile.id,
                             )
-                    else:
-                        referral.rewarded_at = now
+                        else:
+                            referral.reward_locked_at = now
+                            referral.rewarded_at = now
+                            referral.reward_subscription_id = updated.id
 
             await session.commit()
             await session.refresh(profile)
