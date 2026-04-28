@@ -27,6 +27,7 @@ from app.bot.keyboards import (
     plan_actions_keyboard,
     reward_choice_keyboard,
     subscription_actions_keyboard,
+    subscription_instruction_keyboard,
     subscriptions_keyboard,
     tariffs_keyboard,
 )
@@ -41,6 +42,7 @@ from app.bot.texts import (
     payment_pending_text,
     payment_success_text,
     subscription_details_text,
+    subscription_instruction_text,
     subscriptions_list_text,
     tariffs_text,
     trial_success_text,
@@ -475,11 +477,13 @@ async def plan_action_callback(
             )
             return
 
-        text, keyboard = await _render_main_message(business=business, settings=settings, profile=profile)
         await replace_callback_message(
             callback,
-            text=f"{payment_success_text(result.subscription, settings.timezone)}\n\n{text}",
-            reply_markup=keyboard,
+            text=(
+                f"{payment_success_text(result.subscription, settings.timezone)}\n\n"
+                f"{subscription_details_text(result.subscription, settings.timezone)}"
+            ),
+            reply_markup=subscription_actions_keyboard(result.subscription),
         )
 
 
@@ -561,6 +565,28 @@ async def subscription_callback(
                 device_limit=subscription.device_limit,
                 back_to_subscription_id=callback_data.sub,
             ),
+        )
+        return
+
+    if callback_data.action == "instruction":
+        try:
+            subscription = await business.get_user_subscription(
+                user_id=profile.id,
+                subscription_id=callback_data.sub,
+                refresh_remote=False,
+            )
+        except NotFoundError as exc:
+            await replace_callback_message(
+                callback,
+                text=str(exc),
+                reply_markup=main_menu_keyboard(support_username=settings.support_username),
+            )
+            return
+
+        await replace_callback_message(
+            callback,
+            text=subscription_instruction_text(subscription),
+            reply_markup=subscription_instruction_keyboard(subscription.id, subscription.subscription_url),
         )
         return
 

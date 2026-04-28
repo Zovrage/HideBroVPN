@@ -227,7 +227,24 @@ def subscription_details_text(subscription: UserSubscription, tz: str) -> str:
     return (
         f"<b>Подписка: {escape(subscription.remna_username)}</b>\n\n"
         f"Срок до: <b>{_fmt_dt(subscription.expire_at, tz)}</b>\n\n"
-        f"Лимит: <b>{limit_label}</b>"
+        f"Лимит: <b>{limit_label}</b>\n\n"
+        "Ссылка подписки (нажмите, чтобы скопировать):\n"
+        f"<code>{escape(subscription.subscription_url)}</code>"
+    )
+
+
+def subscription_instruction_text(subscription: UserSubscription) -> str:
+    return (
+        "<b>Инструкция по подключению</b>\n\n"
+        "<b>1. Скопируйте ссылку подписки:</b>\n"
+        f"<code>{escape(subscription.subscription_url)}</code>\n\n"
+        "<b>2. Установите клиент на устройство:</b>\n"
+        "Android: v2rayNG или Hiddify\n"
+        "iPhone/iPad: Streisand или Shadowrocket\n"
+        "Windows: v2rayN\n"
+        "macOS: Hiddify или FoXray\n\n"
+        "<b>3. В приложении выберите импорт по ссылке (URL)</b> и вставьте ссылку подписки.\n\n"
+        "<b>4. Включите подключение</b> и проверьте доступ к сайтам."
     )
 
 

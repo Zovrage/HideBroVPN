@@ -162,6 +162,12 @@ def subscription_actions_keyboard(subscription: UserSubscription) -> InlineKeybo
     )
     kb.row(
         InlineKeyboardButton(
+            text="Инструкция",
+            callback_data=SubscriptionCb(action="instruction", sub=subscription.id).pack(),
+        )
+    )
+    kb.row(
+        InlineKeyboardButton(
             text="Устройства",
             callback_data=SubscriptionCb(action="devices", sub=subscription.id).pack(),
         )
@@ -173,6 +179,18 @@ def subscription_actions_keyboard(subscription: UserSubscription) -> InlineKeybo
         )
     )
     kb.row(InlineKeyboardButton(text="Назад", callback_data=MainMenuCb(action="subscriptions").pack()))
+    return kb.as_markup()
+
+
+def subscription_instruction_keyboard(subscription_id: int, subscription_url: str) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="Подключиться", url=subscription_url))
+    kb.row(
+        InlineKeyboardButton(
+            text="Назад к подписке",
+            callback_data=SubscriptionCb(action="open", sub=subscription_id).pack(),
+        )
+    )
     return kb.as_markup()
 
 
