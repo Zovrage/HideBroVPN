@@ -24,12 +24,12 @@ RUBLE = "\u20bd"
 
 def main_menu_keyboard(*, support_username: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="🔌 Подключиться", callback_data=MainMenuCb(action="connect").pack()))
+    kb.row(InlineKeyboardButton(text="💳 Купить подписку", callback_data=MainMenuCb(action="connect").pack()))
     kb.row(InlineKeyboardButton(text="📂 Мои подписки", callback_data=MainMenuCb(action="subscriptions").pack()))
     kb.row(InlineKeyboardButton(text="👥 Пригласить друга", callback_data=MainMenuCb(action="referral").pack()))
     kb.row(
         InlineKeyboardButton(
-            text="🛟 Тех поддержка",
+            text="🎧 Тех поддержка",
             url=f"https://t.me/{support_username}",
         )
     )
