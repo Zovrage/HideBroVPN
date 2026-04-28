@@ -229,7 +229,7 @@ def subscription_details_text(subscription: UserSubscription, tz: str) -> str:
         f"Срок до: <b>{_fmt_dt(subscription.expire_at, tz)}</b>\n\n"
         f"Лимит: <b>{limit_label}</b>\n\n"
         "Ссылка подписки (нажмите, чтобы скопировать):\n"
-        f"<pre>{escape(subscription.subscription_url)}</pre>"
+        f"<code>{escape(subscription.subscription_url)}</code>"
     )
 
 
@@ -250,7 +250,7 @@ def subscription_device_instruction_text(subscription: UserSubscription, device:
             "<b>1.</b> Установите приложение <b>v2rayNG</b> или <b>Hiddify</b>.\n\n"
             "<b>2.</b> Откройте импорт профиля по ссылке (URL).\n\n"
             "<b>3.</b> Вставьте ссылку подписки:\n"
-            f"<pre>{url}</pre>\n\n"
+            f"<code>{url}</code>\n\n"
             "<b>4.</b> Сохраните профиль и нажмите подключение."
         )
 
@@ -260,7 +260,7 @@ def subscription_device_instruction_text(subscription: UserSubscription, device:
             "<b>1.</b> Установите приложение <b>Streisand</b> или <b>Shadowrocket</b>.\n\n"
             "<b>2.</b> Выберите импорт/добавление по ссылке.\n\n"
             "<b>3.</b> Вставьте ссылку подписки:\n"
-            f"<pre>{url}</pre>\n\n"
+            f"<code>{url}</code>\n\n"
             "<b>4.</b> Сохраните профиль и включите VPN."
         )
 
@@ -270,7 +270,7 @@ def subscription_device_instruction_text(subscription: UserSubscription, device:
             "<b>1.</b> Установите <b>v2rayN</b>.\n\n"
             "<b>2.</b> Выберите импорт из буфера / импорт по URL.\n\n"
             "<b>3.</b> Вставьте ссылку подписки:\n"
-            f"<pre>{url}</pre>\n\n"
+            f"<code>{url}</code>\n\n"
             "<b>4.</b> Выберите сервер и нажмите подключение."
         )
 
@@ -280,14 +280,14 @@ def subscription_device_instruction_text(subscription: UserSubscription, device:
             "<b>1.</b> Установите <b>Hiddify</b> или <b>FoXray</b>.\n\n"
             "<b>2.</b> Добавьте профиль через импорт по URL.\n\n"
             "<b>3.</b> Вставьте ссылку подписки:\n"
-            f"<pre>{url}</pre>\n\n"
+            f"<code>{url}</code>\n\n"
             "<b>4.</b> Сохраните профиль и включите подключение."
         )
 
     return (
         "<b>Инструкция по подключению</b>\n\n"
         "Откройте импорт по ссылке в вашем приложении и вставьте:\n"
-        f"<pre>{url}</pre>"
+        f"<code>{url}</code>"
     )
 
 
