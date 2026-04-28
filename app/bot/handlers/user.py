@@ -46,7 +46,6 @@ from app.bot.texts import (
     subscription_instruction_menu_text,
     subscriptions_list_text,
     tariffs_text,
-    trial_success_text,
 )
 from app.bot.ui import replace_callback_message
 from app.core.config import Settings
@@ -265,11 +264,13 @@ async def tariff_select_callback(
             )
             return
 
-        text, keyboard = await _render_main_message(business=business, settings=settings, profile=profile)
         await replace_callback_message(
             callback,
-            text=f"{trial_success_text(subscription, settings.timezone)}\n\n{text}",
-            reply_markup=keyboard,
+            text=(
+                "Пробный доступ активирован.\n\n"
+                f"{subscription_details_text(subscription, settings.timezone)}"
+            ),
+            reply_markup=subscription_actions_keyboard(subscription),
         )
         return
 
