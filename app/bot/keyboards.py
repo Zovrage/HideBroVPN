@@ -186,19 +186,19 @@ def subscription_instruction_devices_keyboard(subscription_id: int) -> InlineKey
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(
-            text="🤖 Android",
+            text="📱 Android",
             callback_data=SubscriptionCb(action="instruction_android", sub=subscription_id).pack(),
         )
     )
     kb.row(
         InlineKeyboardButton(
-            text="🍎 iPhone / iPad",
+            text="📱 iPhone / iPad",
             callback_data=SubscriptionCb(action="instruction_ios", sub=subscription_id).pack(),
         )
     )
     kb.row(
         InlineKeyboardButton(
-            text="🪟 Windows",
+            text="🖥️ Windows",
             callback_data=SubscriptionCb(action="instruction_windows", sub=subscription_id).pack(),
         )
     )
