@@ -27,6 +27,7 @@ from app.bot.keyboards import (
     plan_actions_keyboard,
     reward_choice_keyboard,
     subscription_actions_keyboard,
+    subscription_instruction_devices_keyboard,
     subscription_instruction_keyboard,
     subscriptions_keyboard,
     tariffs_keyboard,
@@ -41,8 +42,9 @@ from app.bot.texts import (
     payment_created_text,
     payment_pending_text,
     payment_success_text,
+    subscription_device_instruction_text,
     subscription_details_text,
-    subscription_instruction_text,
+    subscription_instruction_menu_text,
     subscriptions_list_text,
     tariffs_text,
     trial_success_text,
@@ -585,7 +587,36 @@ async def subscription_callback(
 
         await replace_callback_message(
             callback,
-            text=subscription_instruction_text(subscription),
+            text=subscription_instruction_menu_text(subscription),
+            reply_markup=subscription_instruction_devices_keyboard(subscription.id),
+        )
+        return
+
+    instruction_device_map = {
+        "instruction_android": "android",
+        "instruction_ios": "ios",
+        "instruction_windows": "windows",
+        "instruction_macos": "macos",
+    }
+    instruction_device = instruction_device_map.get(callback_data.action)
+    if instruction_device is not None:
+        try:
+            subscription = await business.get_user_subscription(
+                user_id=profile.id,
+                subscription_id=callback_data.sub,
+                refresh_remote=False,
+            )
+        except NotFoundError as exc:
+            await replace_callback_message(
+                callback,
+                text=str(exc),
+                reply_markup=main_menu_keyboard(support_username=settings.support_username),
+            )
+            return
+
+        await replace_callback_message(
+            callback,
+            text=subscription_device_instruction_text(subscription, instruction_device),
             reply_markup=subscription_instruction_keyboard(subscription.id, subscription.subscription_url),
         )
         return

@@ -233,18 +233,61 @@ def subscription_details_text(subscription: UserSubscription, tz: str) -> str:
     )
 
 
-def subscription_instruction_text(subscription: UserSubscription) -> str:
+def subscription_instruction_menu_text(subscription: UserSubscription) -> str:
     return (
         "<b>Инструкция по подключению</b>\n\n"
-        "<b>1. Скопируйте ссылку подписки:</b>\n"
-        f"<code>{escape(subscription.subscription_url)}</code>\n\n"
-        "<b>2. Установите клиент на устройство:</b>\n"
-        "Android: v2rayNG или Hiddify\n"
-        "iPhone/iPad: Streisand или Shadowrocket\n"
-        "Windows: v2rayN\n"
-        "macOS: Hiddify или FoXray\n\n"
-        "<b>3. В приложении выберите импорт по ссылке (URL)</b> и вставьте ссылку подписки.\n\n"
-        "<b>4. Включите подключение</b> и проверьте доступ к сайтам."
+        f"Ключ: <code>{escape(subscription.remna_username)}</code>\n\n"
+        "Выберите ваше устройство:"
+    )
+
+
+def subscription_device_instruction_text(subscription: UserSubscription, device: str) -> str:
+    url = escape(subscription.subscription_url)
+
+    if device == "android":
+        return (
+            "<b>Инструкция: Android</b>\n\n"
+            "<b>1.</b> Установите приложение <b>v2rayNG</b> или <b>Hiddify</b>.\n"
+            "<b>2.</b> Откройте импорт профиля по ссылке (URL).\n"
+            "<b>3.</b> Вставьте ссылку подписки:\n"
+            f"<code>{url}</code>\n"
+            "<b>4.</b> Сохраните профиль и нажмите подключение."
+        )
+
+    if device == "ios":
+        return (
+            "<b>Инструкция: iPhone / iPad</b>\n\n"
+            "<b>1.</b> Установите приложение <b>Streisand</b> или <b>Shadowrocket</b>.\n"
+            "<b>2.</b> Выберите импорт/добавление по ссылке.\n"
+            "<b>3.</b> Вставьте ссылку подписки:\n"
+            f"<code>{url}</code>\n"
+            "<b>4.</b> Сохраните профиль и включите VPN."
+        )
+
+    if device == "windows":
+        return (
+            "<b>Инструкция: Windows</b>\n\n"
+            "<b>1.</b> Установите <b>v2rayN</b>.\n"
+            "<b>2.</b> Выберите импорт из буфера / импорт по URL.\n"
+            "<b>3.</b> Вставьте ссылку подписки:\n"
+            f"<code>{url}</code>\n"
+            "<b>4.</b> Выберите сервер и нажмите подключение."
+        )
+
+    if device == "macos":
+        return (
+            "<b>Инструкция: macOS</b>\n\n"
+            "<b>1.</b> Установите <b>Hiddify</b> или <b>FoXray</b>.\n"
+            "<b>2.</b> Добавьте профиль через импорт по URL.\n"
+            "<b>3.</b> Вставьте ссылку подписки:\n"
+            f"<code>{url}</code>\n"
+            "<b>4.</b> Сохраните профиль и включите подключение."
+        )
+
+    return (
+        "<b>Инструкция по подключению</b>\n\n"
+        "Откройте импорт по ссылке в вашем приложении и вставьте:\n"
+        f"<code>{url}</code>"
     )
 
 
