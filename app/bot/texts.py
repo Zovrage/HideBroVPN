@@ -247,7 +247,7 @@ def subscription_device_instruction_text(subscription: UserSubscription, device:
     if device == "android":
         return (
             "<b>Инструкция: Android</b>\n\n"
-            "<b>1.</b> Установите приложение <b>v2rayNG</b> или <b>Hiddify</b>.\n\n"
+            "<b>1.</b> Установите приложение <b>v2rayNG</b> или <b>Happ</b>.\n\n"
             "<b>2.</b> Откройте импорт профиля по ссылке (URL).\n\n"
             "<b>3.</b> Вставьте ссылку подписки:\n"
             f"<code>{url}</code>\n\n"
@@ -257,7 +257,7 @@ def subscription_device_instruction_text(subscription: UserSubscription, device:
     if device == "ios":
         return (
             "<b>Инструкция: iPhone / iPad</b>\n\n"
-            "<b>1.</b> Установите приложение <b>Streisand</b> или <b>Shadowrocket</b>.\n\n"
+            "<b>1.</b> Установите приложение <b>Happ</b> или <b>Shadowrocket</b>.\n\n"
             "<b>2.</b> Выберите импорт/добавление по ссылке.\n\n"
             "<b>3.</b> Вставьте ссылку подписки:\n"
             f"<code>{url}</code>\n\n"
@@ -267,7 +267,7 @@ def subscription_device_instruction_text(subscription: UserSubscription, device:
     if device == "windows":
         return (
             "<b>Инструкция: Windows</b>\n\n"
-            "<b>1.</b> Установите <b>v2rayN</b>.\n\n"
+            "<b>1.</b> Установите <b>v2rayN</b> или <b>Happ</b>.\n\n"
             "<b>2.</b> Выберите импорт из буфера / импорт по URL.\n\n"
             "<b>3.</b> Вставьте ссылку подписки:\n"
             f"<code>{url}</code>\n\n"
@@ -277,7 +277,7 @@ def subscription_device_instruction_text(subscription: UserSubscription, device:
     if device == "macos":
         return (
             "<b>Инструкция: macOS</b>\n\n"
-            "<b>1.</b> Установите <b>Hiddify</b> или <b>FoXray</b>.\n\n"
+            "<b>1.</b> Установите <b>Happ</b> или <b>FoXray</b>.\n\n"
             "<b>2.</b> Добавьте профиль через импорт по URL.\n\n"
             "<b>3.</b> Вставьте ссылку подписки:\n"
             f"<code>{url}</code>\n\n"
