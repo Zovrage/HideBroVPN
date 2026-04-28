@@ -41,7 +41,6 @@ from app.bot.texts import (
     payment_canceled_text,
     payment_created_text,
     payment_pending_text,
-    payment_success_text,
     subscription_device_instruction_text,
     subscription_details_text,
     subscription_instruction_menu_text,
@@ -482,7 +481,7 @@ async def plan_action_callback(
         await replace_callback_message(
             callback,
             text=(
-                f"{payment_success_text(result.subscription, settings.timezone)}\n\n"
+                "Оплата подтверждена, подписка активирована.\n\n"
                 f"{subscription_details_text(result.subscription, settings.timezone)}"
             ),
             reply_markup=subscription_actions_keyboard(result.subscription),

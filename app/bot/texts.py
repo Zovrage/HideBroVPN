@@ -97,14 +97,6 @@ def payment_created_text(plan: TariffPlan, amount_rub: int, payment_url: str | N
     )
 
 
-def payment_success_text(subscription: UserSubscription, tz: str) -> str:
-    return (
-        "Оплата подтверждена, подписка активирована.\n\n"
-        f"Ключ: <code>{escape(subscription.remna_username)}</code>\n\n"
-        f"Действует до: <b>{_fmt_dt(subscription.expire_at, tz)}</b>"
-    )
-
-
 def payment_pending_text() -> str:
     return "Оплата пока не подтверждена. Если вы уже оплатили, подождите 5-20 секунд и нажмите «Проверить оплату» ещё раз."
 
@@ -226,7 +218,7 @@ def subscription_details_text(subscription: UserSubscription, tz: str) -> str:
     limit_label = _device_limit_short_label(subscription.device_limit)
     return (
         f"<b>Подписка: {escape(subscription.remna_username)}</b>\n\n"
-        f"Срок до: <b>{_fmt_dt(subscription.expire_at, tz)}</b>\n\n"
+        f"Действует до: <b>{_fmt_dt(subscription.expire_at, tz)}</b>\n\n"
         f"Лимит: <b>{limit_label}</b>\n\n"
         "Ссылка подписки (нажмите, чтобы скопировать):\n"
         f"<code>{escape(subscription.subscription_url)}</code>"
