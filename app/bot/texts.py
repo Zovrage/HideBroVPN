@@ -181,24 +181,55 @@ def admin_stats_text(stats: dict[str, int]) -> str:
 
 
 def admin_issue_target_prompt() -> str:
-    return "Отправьте ID пользователя или @username, кому нужно выдать бесплатный ключ."
+    return "Отправьте ID пользователя или @username, кому нужно выдать подписку."
 
 
 def admin_issue_device_prompt(identifier: str) -> str:
     return f"Получатель: <b>{escape(identifier)}</b>\n\nВыберите лимит устройств:"
 
 
-def admin_issue_days_prompt(identifier: str) -> str:
-    return f"Получатель: <b>{escape(identifier)}</b>\n\nВыберите срок выдачи:"
+def admin_issue_months_prompt(identifier: str) -> str:
+    return f"Получатель: <b>{escape(identifier)}</b>\n\nВыберите срок выдачи в месяцах:"
 
 
 def admin_issue_success_text(target: UserProfile, subscription: UserSubscription, tz: str) -> str:
     label = f"@{target.username}" if target.username else str(target.telegram_id)
     limit_label = _device_limit_short_label(subscription.device_limit)
     return (
-        f"Ключ выдан пользователю <b>{escape(label)}</b>.\n\n"
+        f"Подписка выдана пользователю <b>{escape(label)}</b>.\n\n"
         f"До: <b>{_fmt_dt(subscription.expire_at, tz)}</b>\n\n"
         f"Лимит: <b>{limit_label}</b>"
+    )
+
+
+def admin_extend_target_prompt() -> str:
+    return "Отправьте ID пользователя или @username, чью подписку нужно продлить."
+
+
+def admin_extend_choose_subscription_text(target: UserProfile, subscriptions: list[UserSubscription], tz: str) -> str:
+    label = f"@{target.username}" if target.username else str(target.telegram_id)
+    lines = [f"<b>Пользователь:</b> {escape(label)}", "", "Выберите подписку для продления:"]
+    for index, subscription in enumerate(subscriptions, start=1):
+        lines.append(
+            f"{index}. <code>{escape(subscription.remna_username)}</code> — до <b>{_fmt_dt(subscription.expire_at, tz)}</b>"
+        )
+    return "\n".join(lines)
+
+
+def admin_extend_months_prompt(subscription: UserSubscription, tz: str) -> str:
+    return (
+        f"Подписка: <code>{escape(subscription.remna_username)}</code>\n\n"
+        f"Сейчас действует до: <b>{_fmt_dt(subscription.expire_at, tz)}</b>\n\n"
+        "Выберите срок продления в месяцах:"
+    )
+
+
+def admin_extend_success_text(target: UserProfile, subscription: UserSubscription, months_label: str, tz: str) -> str:
+    label = f"@{target.username}" if target.username else str(target.telegram_id)
+    return (
+        f"Подписка пользователя <b>{escape(label)}</b> продлена на <b>{months_label}</b>.\n\n"
+        f"Ключ: <code>{escape(subscription.remna_username)}</code>\n\n"
+        f"Новый срок: <b>{_fmt_dt(subscription.expire_at, tz)}</b>"
     )
 
 

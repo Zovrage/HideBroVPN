@@ -292,7 +292,8 @@ def expired_subscription_keyboard(subscription_id: int) -> InlineKeyboardMarkup:
 def admin_menu_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="📊 Статистика", callback_data=AdminMenuCb(action="stats").pack()))
-    kb.row(InlineKeyboardButton(text="🎁 Выдача ключей", callback_data=AdminMenuCb(action="issue").pack()))
+    kb.row(InlineKeyboardButton(text="🎁 Выдача подписок", callback_data=AdminMenuCb(action="issue").pack()))
+    kb.row(InlineKeyboardButton(text="🔄 Продлить подписку", callback_data=AdminMenuCb(action="extend").pack()))
     kb.row(InlineKeyboardButton(text="📣 Рассылка", callback_data=AdminMenuCb(action="broadcast").pack()))
     kb.row(InlineKeyboardButton(text="🏠 Главное меню", callback_data=AdminMenuCb(action="main").pack()))
     return kb.as_markup()
@@ -312,31 +313,69 @@ def admin_issue_device_keyboard() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def admin_issue_days_keyboard() -> InlineKeyboardMarkup:
+def admin_issue_months_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    used_days: set[int] = set()
-    days_options: list[int] = []
-    for plan in PLANS.values():
-        if plan.days in used_days:
-            continue
-        used_days.add(plan.days)
-        days_options.append(plan.days)
-
-    if 5 not in used_days:
-        if 3 in days_options:
-            days_options.insert(days_options.index(3) + 1, 5)
-        else:
-            days_options.append(5)
-
-    for days in days_options:
+    for months in _admin_extend_month_options():
         kb.row(
             InlineKeyboardButton(
-                text=f"🗓️ {days} дней",
-                callback_data=AdminIssueCb(action="days", value=str(days)).pack(),
+                text=f"🗓️ {_month_label(months)}",
+                callback_data=AdminIssueCb(action="issue_months", value=str(months)).pack(),
             )
         )
     kb.row(InlineKeyboardButton(text="◀️ Назад", callback_data=AdminMenuCb(action="back").pack()))
     return kb.as_markup()
+
+
+def admin_extend_subscriptions_keyboard(subscriptions: list[UserSubscription]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    for subscription in subscriptions:
+        kb.row(
+            InlineKeyboardButton(
+                text=f"🔑 {subscription.remna_username}"[:64],
+                callback_data=AdminIssueCb(action="extend_pick", value=str(subscription.id)).pack(),
+            )
+        )
+    kb.row(InlineKeyboardButton(text="◀️ Назад", callback_data=AdminMenuCb(action="back").pack()))
+    return kb.as_markup()
+
+
+def admin_extend_months_keyboard() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    for months in _admin_extend_month_options():
+        kb.row(
+            InlineKeyboardButton(
+                text=f"🗓️ {_month_label(months)}",
+                callback_data=AdminIssueCb(action="extend_months", value=str(months)).pack(),
+            )
+        )
+    kb.row(InlineKeyboardButton(text="◀️ Назад", callback_data=AdminMenuCb(action="back").pack()))
+    return kb.as_markup()
+
+
+def _admin_extend_month_options() -> list[int]:
+    months_options: set[int] = set()
+    for code, plan in PLANS.items():
+        if plan.is_trial:
+            continue
+        if not code.startswith("m"):
+            continue
+        raw = code[1:]
+        if not raw.isdigit():
+            continue
+        months_options.add(int(raw))
+    return sorted(months_options)
+
+
+def _month_label(months: int) -> str:
+    rem10 = months % 10
+    rem100 = months % 100
+    if rem10 == 1 and rem100 != 11:
+        suffix = "месяц"
+    elif rem10 in (2, 3, 4) and rem100 not in (12, 13, 14):
+        suffix = "месяца"
+    else:
+        suffix = "месяцев"
+    return f"{months} {suffix}"
 
 
 def reward_choice_keyboard(referral_id: int, subscriptions: list[UserSubscription]) -> InlineKeyboardMarkup:

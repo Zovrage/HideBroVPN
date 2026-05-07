@@ -1035,6 +1035,59 @@ class BusinessService:
             await session.refresh(subscription)
             return locked_target, subscription
 
+    async def admin_extend_subscription(
+        self,
+        *,
+        admin_telegram_id: int,
+        target_user_id: int,
+        subscription_id: int,
+        days: int,
+    ) -> tuple[UserProfile, UserSubscription]:
+        now = self._now()
+
+        async with self._session_factory() as session:
+            admin_profile = await session.scalar(
+                select(UserProfile).where(UserProfile.telegram_id == admin_telegram_id)
+            )
+
+            target = await session.scalar(
+                select(UserProfile).where(UserProfile.id == target_user_id).with_for_update()
+            )
+            if not target:
+                raise NotFoundError("Пользователь не найден")
+
+            subscription = await session.scalar(
+                select(UserSubscription)
+                .where(
+                    UserSubscription.id == subscription_id,
+                    UserSubscription.user_id == target_user_id,
+                )
+                .with_for_update()
+            )
+            if not subscription:
+                raise NotFoundError("Подписка не найдена")
+
+            updated = await self._extend_subscription_days(
+                session=session,
+                subscription=subscription,
+                days=days,
+                now=now,
+            )
+
+            session.add(
+                AdminGrant(
+                    admin_user_id=admin_profile.id if admin_profile else None,
+                    target_user_id=target.id,
+                    subscription_id=updated.id,
+                    days=days,
+                )
+            )
+
+            await session.commit()
+            await session.refresh(target)
+            await session.refresh(updated)
+            return target, updated
+
     async def get_subscriptions_by_ids(self, ids: list[int]) -> list[UserSubscription]:
         if not ids:
             return []
