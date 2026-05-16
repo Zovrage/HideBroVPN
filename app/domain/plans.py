@@ -21,19 +21,19 @@ PLANS: dict[str, TariffPlan] = {
         price_rub=0,
         is_trial=True,
     ),
-    "m1": TariffPlan(code="m1", title="1 месяц", days=30, price_rub=100),
+    "m1": TariffPlan(code="m1", title="1 месяц", days=30, price_rub=150),
     "m3": TariffPlan(code="m3", title="3 месяца", days=90, price_rub=300),
     "m6": TariffPlan(code="m6", title="6 месяцев", days=180, price_rub=600),
-    "m12": TariffPlan(code="m12", title="12 месяцев", days=365, price_rub=1000),
+    "m12": TariffPlan(code="m12", title="12 месяцев", days=365, price_rub=1100),
 }
 
 PAID_PLAN_CODES: tuple[str, ...] = tuple(code for code, plan in PLANS.items() if not plan.is_trial)
 DEVICE_LIMIT_PRICE_OVERRIDES: dict[int, dict[str, int]] = {
     3: {
-        "m1": 150,
-        "m3": 350,
-        "m6": 650,
-        "m12": 1150,
+        "m1": 250,
+        "m3": 400,
+        "m6": 700,
+        "m12": 1200,
     }
 }
 
